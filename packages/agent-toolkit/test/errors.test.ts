@@ -3,9 +3,11 @@
  * message, requestId, ... } }`. A thrown error would end the whole agent loop.
  */
 import { createClient } from "@rendobar/sdk";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { rendobarToolDefinitions } from "../src/core.js";
-import { answering, MOCK, recording, secondSdkCopy } from "./helpers.js";
+import { answering, MOCK, recording, reset, secondSdkCopy } from "./helpers.js";
+
+beforeEach(() => reset());
 
 describe("tool errors", () => {
   it("returns a network failure as an error object instead of throwing", async () => {

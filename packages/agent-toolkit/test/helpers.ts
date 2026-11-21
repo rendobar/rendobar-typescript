@@ -69,3 +69,28 @@ export async function secondSdkCopy() {
   const sdk: typeof import("@rendobar/sdk") = await import(pathToFileURL(join(copy, "dist/index.mjs")).href);
   return { sdk, remove: () => rmSync(copy, { recursive: true, force: true }) };
 }
+
+/**
+ * A client whose job never finishes, and which aborts `controller` from inside
+ * its first poll. Cancellation is then tested without any clock: the abort
+ * lands while the SDK is between polls, every time.
+ */
+export function abortingOnFirstPoll(controller: AbortController) {
+  const seen = { submits: 0, polls: 0 };
+  const json = (data: unknown, status: number) => new Response(JSON.stringify({ data }), { status, headers: { "content-type": "application/json" } });
+  const client = createClient({
+    apiKey: "rb_test",
+    baseUrl: "http://api.test",
+    maxRetries: 0,
+    fetch: async (_url, init) => {
+      if (init?.method === "POST") {
+        seen.submits += 1;
+        return json({ id: "job_1", status: "waiting" }, 201);
+      }
+      seen.polls += 1;
+      controller.abort();
+      return json({ id: "job_1", type: "ffprobe", status: "running" }, 200);
+    },
+  });
+  return { client, seen };
+}

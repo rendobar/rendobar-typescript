@@ -25,6 +25,7 @@ import {
   type JobTypeParams,
   type JsonValue,
   type ToolError,
+  type JobStatusName,
   type ToolErrorCode,
   type ToolFailure,
   type ToolResult,
@@ -224,20 +225,26 @@ function waitError(e: unknown, options: RunOptions): ToolError {
  * the job id and a pointer to get_job, never "retry": resubmitting would create
  * and bill a second job.
  */
-async function readCreated(rb: RendobarClient, id: string, wait: boolean, options: RunOptions): Promise<ToolResult<JobResult>> {
+async function readCreated(rb: RendobarClient, created: Created, wait: boolean, options: RunOptions): Promise<ToolResult<JobResult>> {
+  // The last status anyone saw, so a failed or cancelled wait still says where the job got to.
+  let lastStatus: JobStatusName = created.status;
   try {
-    const job = wait ? await rb.jobs.wait(id, { throwOnFailure: false, ...withSignal(options) }) : await rb.jobs.get(id, withSignal(options));
+    const job = wait
+      ? await rb.jobs.wait(created.id, { throwOnFailure: false, onProgress: (j) => (lastStatus = j.status), ...withSignal(options) })
+      : await rb.jobs.get(created.id, withSignal(options));
     return summarize(job, false);
   } catch (e) {
     const failed: ToolFailure = {
       error: waitError(e, options),
-      id,
-      status: isWaitTimeoutError(e) ? e.lastStatus : "unknown",
+      id: created.id,
+      status: isWaitTimeoutError(e) ? e.lastStatus : lastStatus,
       hint: "The job exists. Call get_job with this id. Do not submit it again.",
     };
     return failed;
   }
 }
+
+type Created = { id: string; status: JobStatusName };
 
 /**
  * Submits a job. A failure after which the job may exist (no answer, a 429 or a
@@ -246,13 +253,13 @@ async function readCreated(rb: RendobarClient, id: string, wait: boolean, option
  * instead of billing a second one. A refusal (a 4xx other than 429) created
  * nothing and carries no key: the call itself must change.
  */
-async function submit(rb: RendobarClient, body: CreateJobParams, options: RunOptions): Promise<{ id: string } | ToolFailure> {
+async function submit(rb: RendobarClient, body: CreateJobParams, options: RunOptions): Promise<Created | ToolFailure> {
   // Chosen here, not left to the SDK, so the key is known even when the failure
   // is not an ApiError (an abort or a timeout) and carries none.
   const idempotencyKey = body.idempotencyKey ?? generateIdempotencyKey();
   try {
     const created = await rb.jobs.create({ ...body, idempotencyKey }, withSignal(options));
-    return { id: created.id };
+    return { id: created.id, status: created.status };
   } catch (e) {
     if (isApiError(e) && e.statusCode < 500 && e.statusCode !== 429) {
       // The API's message names its REST route. The model's way to the list is this toolkit's tool.
@@ -346,7 +353,7 @@ export function buildTools(options: ToolkitOptions) {
       };
       // Only the submit may be retried by the model. Once a job exists, failures say so.
       const created = await submit(rb, body, opts);
-      return "error" in created ? created : readCreated(rb, created.id, wait !== false, opts);
+      return "error" in created ? created : readCreated(rb, created, wait !== false, opts);
     },
   });
 
@@ -375,7 +382,7 @@ export function buildTools(options: ToolkitOptions) {
     input: probeInput,
     execute: async ({ url }, opts) => {
       const created = await submit(rb, { type: "ffprobe", params: { command: url } }, opts);
-      return "error" in created ? created : readCreated(rb, created.id, true, opts);
+      return "error" in created ? created : readCreated(rb, created, true, opts);
     },
   });
 

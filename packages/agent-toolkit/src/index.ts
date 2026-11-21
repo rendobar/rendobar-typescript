@@ -6,6 +6,7 @@ export {
   type FailedJob,
   type JobFile,
   type JobResult,
+  type JobStatusName,
   type JobSummary,
   type JobTypeList,
   type JobTypeParams,

@@ -6,7 +6,7 @@
 import { createClient, WaitTimeoutError } from "@rendobar/sdk";
 import { beforeEach, describe, expect, it } from "vitest";
 import { rendobarToolDefinitions } from "../src/core.js";
-import { answering, createdCount, MOCK, mockClient, recording, requests, reset } from "./helpers.js";
+import { abortingOnFirstPoll, answering, createdCount, MOCK, mockClient, recording, requests, reset } from "./helpers.js";
 
 beforeEach(() => reset());
 
@@ -50,7 +50,8 @@ describe("run_job", () => {
     const result = await rendobarToolDefinitions({ client }).run_job.run({ type: "ffprobe", params: { command: "https://x/a.mp4" } });
 
     expect(polls).toBeGreaterThan(0);
-    expect(result).toMatchObject({ id: expect.stringMatching(/^job_/), error: { code: "WAIT_FAILED", requestId: null }, hint: expect.stringContaining("get_job") });
+    // No poll was answered, so the last status known is the one the submit reported.
+    expect(result).toMatchObject({ id: expect.stringMatching(/^job_/), status: "waiting", error: { code: "WAIT_FAILED", requestId: null }, hint: expect.stringContaining("get_job") });
     expect(JSON.stringify(result)).not.toMatch(/can be retried/);
   });
 
@@ -65,19 +66,14 @@ describe("run_job", () => {
     expect(result).toMatchObject({ id: expect.stringMatching(/^job_/), status: "running", error: { code: "WAIT_TIMEOUT", requestId: null } });
   });
 
-  it("stops waiting when the signal aborts, and says the job exists", async () => {
+  it("stops waiting when the signal aborts, and returns the job's id and last status", async () => {
     const controller = new AbortController();
-    const tools = rendobarToolDefinitions({ client: mockClient() });
-    const started = Date.now();
-    setTimeout(() => controller.abort(), 300);
+    const { client, seen } = abortingOnFirstPoll(controller);
 
-    const result = await tools.run_job.run({ type: "ffprobe", params: { command: "https://x/a.mp4" } }, { signal: controller.signal });
+    const result = await rendobarToolDefinitions({ client }).run_job.run({ type: "ffprobe", params: { command: "https://x/a.mp4" } }, { signal: controller.signal });
 
-    expect(Date.now() - started).toBeLessThan(1500);
-    expect(result).toMatchObject({ id: expect.stringMatching(/^job_/), error: { code: "ABORTED" }, hint: expect.stringContaining("get_job") });
-    const polls = (await requests()).filter((r) => r.method === "GET").length;
-    await new Promise((r) => setTimeout(r, 2500));
-    expect((await requests()).filter((r) => r.method === "GET").length).toBe(polls);
+    expect(result).toEqual({ id: "job_1", status: "running", error: { code: "ABORTED", message: "The wait was cancelled.", requestId: null }, hint: expect.stringContaining("get_job") });
+    expect(seen).toEqual({ submits: 1, polls: 1 });
   });
 
   it("returns the key it used inside error when the submit gets no answer, and sent that key", async () => {

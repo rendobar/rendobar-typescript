@@ -6,7 +6,7 @@
  *
  *   const agent = createAgent({ model, tools: rendobarTools() });
  */
-import { tool, type DynamicStructuredTool } from "@langchain/core/tools";
+import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { buildTools, runUnchecked, type CoreTool, type RendobarToolName, type ToolkitOptions } from "./core.js";
 import type { JobResult, JobTypeList, JobTypeParams, ToolResult } from "./results.js";
@@ -30,13 +30,19 @@ export type RendobarToolResult = ToolResult<JobResult> | ToolResult<JobTypeList 
 /** Every Rendobar tool has this one type, so `toolsByName[call.name].invoke(call)` type-checks. */
 export type RendobarLangChainTool = DynamicStructuredTool<LangChainSchema, LangChainInput, LangChainInput, RendobarToolResult, unknown, RendobarToolName>;
 
+/**
+ * Built with the DynamicStructuredTool class, not the `tool()` helper: the
+ * helper rejects with an AbortError the moment the run's signal aborts, which
+ * would drop the result and with it the id of a job that is still running and
+ * billing. The class hands the signal to the tool, which stops polling and
+ * returns ABORTED with that id, as in every other framework.
+ */
 function langchainTool<I extends z.ZodType, R extends RendobarToolResult>(d: CoreTool<I, R>): RendobarLangChainTool {
-  const schema: LangChainSchema = z.looseObject({}).meta(d.jsonSchema);
-  // LangChain hands the run config to the tool. Its signal stops the tool's polling when the run is cancelled.
-  return tool(async (input: LangChainInput, config): Promise<RendobarToolResult> => runUnchecked(d, input, config.signal === undefined ? {} : { signal: config.signal }), {
+  return new DynamicStructuredTool<LangChainSchema, LangChainInput, LangChainInput, RendobarToolResult, unknown, RendobarToolName>({
     name: d.name,
     description: d.description,
-    schema,
+    schema: z.looseObject({}).meta(d.jsonSchema),
+    func: (input, _runManager, config) => runUnchecked(d, input, config?.signal === undefined ? {} : { signal: config.signal }),
   });
 }
 

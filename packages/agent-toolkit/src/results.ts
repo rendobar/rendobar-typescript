@@ -8,7 +8,7 @@
  * values plus an open case, so a new value from a newer API is data, not a
  * crash and not a breaking release.
  */
-import type { ApiProblem, Cost, OutputFile } from "@rendobar/sdk";
+import type { ApiErrorCode, ApiProblem, Cost, Job, JobError, JobTypeName, OutputFile } from "@rendobar/sdk";
 
 /** Any JSON value, as a job's output data is. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -21,16 +21,11 @@ export function isJsonValue(value: unknown): value is JsonValue {
   return false;
 }
 
-/** The toolkit's own error codes, then any code the API sends. */
-export type ToolErrorCode =
-  | "VALIDATION_ERROR"
-  | "NOT_FOUND"
-  | "REQUEST_FAILED"
-  | "WAIT_TIMEOUT"
-  | "WAIT_FAILED"
-  | "ABORTED"
-  | "MISSING_API_KEY"
-  | (string & {});
+/** A job status: the SDK's known ones, or one a newer API sends. */
+export type JobStatusName = Job["status"] | (string & {});
+
+/** The toolkit's own error codes, then every code the SDK knows, then any code a newer API sends. */
+export type ToolErrorCode = "REQUEST_FAILED" | "WAIT_TIMEOUT" | "WAIT_FAILED" | "ABORTED" | ApiErrorCode;
 
 export type ToolError = {
   code: ToolErrorCode;
@@ -48,7 +43,7 @@ export type ToolFailure = {
   /** The job the failure is about, when one exists. */
   id?: string;
   /** That job's last known status. */
-  status?: string;
+  status?: JobStatusName;
   /** What the model should do next. */
   hint?: string;
 };
@@ -63,7 +58,7 @@ export type JobFile = Pick<OutputFile, "url" | "type" | "path" | "size">;
 
 type JobBase = {
   id: string;
-  type: string;
+  type: JobTypeName;
   /** Null until billing settles, just after the job completes. `amount` is integer nanodollars. */
   cost: Cost | null;
 };
@@ -76,7 +71,7 @@ export type CompleteJob = JobBase & {
   files: JobFile[];
   data: JsonValue | null;
 };
-export type FailedJob = JobBase & { status: "failed"; error: { code: string; message: string } };
+export type FailedJob = JobBase & { status: "failed"; error: Pick<JobError, "code" | "message"> };
 export type CancelledJob = JobBase & { status: "cancelled" };
 /** A status this toolkit does not know yet, as a newer API may report. */
 export type UnknownStatusJob = JobBase & { status: "unknown"; reportedStatus: string };
@@ -85,11 +80,11 @@ export type JobSummary = PendingJob | CompleteJob | FailedJob | CancelledJob | U
 
 export type JobResult = { job: JobSummary; hint?: string };
 
-export type JobTypeSummary = { type: string; summary: string; useCases: string[] };
+export type JobTypeSummary = { type: JobTypeName; summary: string; useCases: string[] };
 export type JobTypeList = { jobTypes: JobTypeSummary[] };
 
 export type JobTypeParams = {
-  type: string;
+  type: JobTypeName;
   /** The params JSON Schema, trimmed to fit a model's context unless `full` was asked for. */
   params: JsonValue;
   /** The named inputs this job type takes. `anyName` means it takes inputs under any name. */

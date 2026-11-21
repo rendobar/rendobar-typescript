@@ -5,13 +5,14 @@
  * pass each framework's cancellation through.
  */
 import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
+import type { RendobarClient } from "@rendobar/sdk";
 import { asSchema, type FlexibleSchema } from "ai";
 import { beforeEach, describe, expect, it } from "vitest";
 import { rendobarTools as aiSdkTools } from "../src/ai-sdk.js";
 import { buildTools } from "../src/core.js";
 import { rendobarTools as langchainTools, type RendobarLangChainTool } from "../src/langchain.js";
 import { rendobarTools as mastraTools } from "../src/mastra.js";
-import { mockClient, requests, reset } from "./helpers.js";
+import { abortingOnFirstPoll, mockClient, requests, reset } from "./helpers.js";
 
 const NAMES = ["get_job", "list_job_types", "probe_media", "run_job"] as const;
 
@@ -61,26 +62,19 @@ describe("every framework", () => {
     expect((await requests()).length).toBe(0);
   });
 
-  it("stops polling when the framework cancels the run", async () => {
-    const client = mockClient();
-    const runs: Array<(signal: AbortSignal) => Promise<unknown>> = [
-      async (signal) => aiSdkTools({ client }).run_job.execute?.({ type: "ffprobe" }, { toolCallId: "1", messages: [], context: {}, abortSignal: signal }),
-      async (signal) => mastraTools({ client }).run_job.execute?.({ type: "ffprobe" }, { abortSignal: signal }),
-      // LangChain itself rejects an invoke whose signal aborts; the tool must still stop polling.
-      (signal) => byName(langchainTools({ client }), "run_job").invoke({ type: "ffprobe" }, { signal }).catch((e: unknown) => e),
+  it("passes the framework's cancellation through, and every framework returns ABORTED with the job id", async () => {
+    const runs: Array<(signal: AbortSignal, client: RendobarClient) => Promise<unknown>> = [
+      async (signal, client) => aiSdkTools({ client }).run_job.execute?.({ type: "ffprobe" }, { toolCallId: "1", messages: [], context: {}, abortSignal: signal }),
+      async (signal, client) => mastraTools({ client }).run_job.execute?.({ type: "ffprobe" }, { abortSignal: signal }),
+      async (signal, client) => byName(langchainTools({ client }), "run_job").invoke({ type: "ffprobe" }, { signal }),
     ];
     for (const run of runs) {
-      await reset();
       const controller = new AbortController();
-      setTimeout(() => controller.abort(), 300);
-      const started = Date.now();
-      await run(controller.signal);
-      expect(Date.now() - started).toBeLessThan(1500);
-      const polls = (await requests()).length;
-      await new Promise((r) => setTimeout(r, 2200));
-      expect((await requests()).length).toBe(polls);
+      const { client, seen } = abortingOnFirstPoll(controller);
+      expect(await run(controller.signal, client)).toMatchObject({ id: "job_1", status: "running", error: { code: "ABORTED" } });
+      expect(seen).toEqual({ submits: 1, polls: 1 });
     }
-  }, 15_000);
+  });
 });
 
 describe("Mastra adapter", () => {
