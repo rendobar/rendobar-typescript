@@ -29,8 +29,8 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@nestjs/common": ">=10",
-    "@nestjs/core": ">=10",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "@nestjs/core": "^10.0.0 || ^11.0.0",
     "@rendobar/sdk": ">=5.18.0",
     "reflect-metadata": ">=0.1.13",
     "rxjs": ">=7"
