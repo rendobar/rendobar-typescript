@@ -9,6 +9,7 @@ npm install @rendobar/nestjs @rendobar/sdk
 ## Register the module
 
 ```ts
+// app.module.ts
 import { Module } from "@nestjs/common";
 import { RendobarModule } from "@rendobar/nestjs";
 
@@ -18,11 +19,12 @@ import { RendobarModule } from "@rendobar/nestjs";
 export class AppModule {}
 ```
 
-With no `apiKey`, the client reads `RENDOBAR_API_KEY`. To read options from `ConfigService`, use `RendobarModule.forRootAsync({ imports, inject, useFactory })`.
+With no `apiKey`, the client reads `RENDOBAR_API_KEY`. If neither is set, the app fails at startup with an error that names both, instead of failing later on the first API call. To read options from `ConfigService`, use `RendobarModule.forRootAsync({ imports, inject, useFactory })`.
 
 ## Use the client
 
 ```ts
+// videos.service.ts
 import { Injectable } from "@nestjs/common";
 import { InjectRendobar, type RendobarClient } from "@rendobar/nestjs";
 
@@ -41,19 +43,32 @@ export class VideosService {
 The guard checks the signature against the exact bytes Rendobar sent, so create the app with `rawBody` on:
 
 ```ts
-const app = await NestFactory.create(AppModule, { rawBody: true });
+// main.ts
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, { rawBody: true });
+  await app.listen(3000);
+}
+void bootstrap();
 ```
 
+`@RendobarEvent()` hands your handler the parsed body. Type it as `WebhookPayload` and switch on `event.event`, and `event.data` narrows to that event's fields.
+
 ```ts
-import { Controller, Post, UseGuards } from "@nestjs/common";
-import { RendobarEvent, RendobarSignatureGuard } from "@rendobar/nestjs";
+// webhooks.controller.ts
+import { Controller, HttpCode, Post, UseGuards } from "@nestjs/common";
+import { RendobarEvent, RendobarSignatureGuard, type WebhookPayload } from "@rendobar/nestjs";
 
 @Controller("webhooks")
 export class WebhooksController {
   @Post("rendobar")
+  @HttpCode(204)
   @UseGuards(RendobarSignatureGuard)
-  handle(@RendobarEvent() event: { event: string; data: unknown }) {
+  handle(@RendobarEvent() event: WebhookPayload) {
     // Signed by Rendobar in the last five minutes.
+    if (event.event === "job.completed") console.log(event.data.jobId, event.data.output);
   }
 }
 ```
