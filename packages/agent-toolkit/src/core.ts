@@ -80,6 +80,31 @@ async function waitFor(rb: RendobarClient, id: string): Promise<unknown> {
   }
 }
 
+/** `sdk_` plus 32 hex characters, the same shape the SDK and the Python agents use. */
+function newIdempotencyKey(): string {
+  return `sdk_${crypto.randomUUID().replaceAll("-", "")}`;
+}
+
+/**
+ * Submits a job. A failure before the job exists comes back with the key it
+ * used: a lost response may hide a created job, and only the same key makes a
+ * retry return that job instead of billing a second one. A refusal (a 4xx other
+ * than 429) created nothing and carries no key: the call itself must change.
+ */
+async function submit(rb: RendobarClient, body: Parameters<RendobarClient["jobs"]["create"]>[0]): Promise<unknown> {
+  const idempotencyKey = body.idempotencyKey ?? newIdempotencyKey();
+  try {
+    return await rb.jobs.create({ ...body, idempotencyKey });
+  } catch (e) {
+    if (isApiError(e) && e.statusCode < 500 && e.statusCode !== 429) {
+      return { error: { code: e.code, message: e.message, requestId: e.requestId ?? null } };
+    }
+    const code = isApiError(e) ? e.code : "REQUEST_FAILED";
+    const message = (e instanceof Error ? e.message : String(e)).replace(/\.?$/, ".");
+    return { error: { code, message: `${message} The call can be retried with this idempotencyKey.` }, idempotencyKey };
+  }
+}
+
 export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
   // A client the caller built keeps its own attribution. Ours names this package, not the SDK.
   const rb = options.client ?? createClient({ client: `agent-toolkit/${VERSION}`, ...(options.baseUrl === undefined ? {} : { baseUrl: options.baseUrl }) });
@@ -110,12 +135,15 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
       params: z.record(z.string(), z.unknown()).default({}).describe("Params for this job type, per its schema"),
       inputs: z.record(z.string(), z.unknown()).optional().describe("Named input files, as URLs"),
       wait: z.boolean().default(true).describe("Wait for the job to finish. False returns the created job at once"),
-      idempotencyKey: z.string().optional().describe("Optional. Reuse one key to make repeating this exact submit safe"),
+      idempotencyKey: z
+        .string()
+        .optional()
+        .describe("Reuse the key a failed run_job returned to retry it without creating a second job. Omit on a first call"),
     }),
     run: async ({ type, params, inputs, wait, idempotencyKey }) => {
       const body = { type, params, ...(inputs === undefined ? {} : { inputs }), ...(idempotencyKey === undefined ? {} : { idempotencyKey }) };
       // Only the submit may be retried by the model. Once a job exists, failures say so.
-      const created = await guarded(() => rb.jobs.create(body));
+      const created = await submit(rb, body);
       if (!isCreated(created)) return created;
       return wait ? waitFor(rb, created.id) : created;
     },
@@ -133,7 +161,7 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
     description: "Inspect a media file by URL: duration, format, streams, codecs, resolution, frame rate. Runs as a short ffprobe job, billed like any other job.",
     input: z.object({ url: z.string().url().describe("Public or signed URL of the media file") }),
     run: async ({ url }) => {
-      const created = await guarded(() => rb.jobs.create({ type: "ffprobe", params: { command: url } }));
+      const created = await submit(rb, { type: "ffprobe", params: { command: url } });
       return isCreated(created) ? waitFor(rb, created.id) : created;
     },
   });
