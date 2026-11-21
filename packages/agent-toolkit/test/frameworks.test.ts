@@ -31,6 +31,26 @@ describe("Mastra adapter", () => {
 });
 
 describe("LangChain.js adapter", () => {
+  it("answers input that does not match the schema with error data, not a throw", async () => {
+    const tools = langchainTools({ client: client() });
+    const runJob = tools[1];
+    const toolsByName = Object.fromEntries(tools.map((t) => [t.name, t]));
+
+    const message = await runJob.invoke({ name: "run_job", args: { params: {} }, id: "c", type: "tool_call" });
+    // The README's LangGraph tool node: one bad call must not reject the batch.
+    const batch = await Promise.all(
+      [{ name: "run_job", args: { params: {} }, id: "a", type: "tool_call" as const }, { name: "get_job", args: { id: "job_404" }, id: "b", type: "tool_call" as const }].map(
+        (call) => toolsByName[call.name]?.invoke(call),
+      ),
+    );
+
+    expect(message).toMatchObject({ tool_call_id: "c", content: expect.stringContaining('"code":"VALIDATION_ERROR"') });
+    expect(String(message.content)).toMatch(/type: /);
+    expect(batch.map((m) => String(m?.content))).toEqual([expect.stringContaining("VALIDATION_ERROR"), expect.stringContaining("NOT_FOUND")]);
+    const created = await (await fetch(`${MOCK}/__created`)).json();
+    expect(created.data.count).toBe(0);
+  });
+
   it("runs a job and reports a missing one as data", async () => {
     const tools = langchainTools({ client: client() });
     expect(tools.map((t) => t.name).sort()).toEqual(["get_job", "list_job_types", "probe_media", "run_job"]);

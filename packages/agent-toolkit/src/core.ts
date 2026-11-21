@@ -29,6 +29,7 @@ export type ToolDefinition<I extends z.ZodType> = {
   name: string;
   description: string;
   input: I;
+  /** Checks `input` against the schema first: a mismatch comes back as a VALIDATION_ERROR, never a throw. */
   run: (input: z.infer<I>) => Promise<unknown>;
 };
 
@@ -36,9 +37,22 @@ function isCreated(value: unknown): value is { id: string; status: string } {
   return typeof value === "object" && value !== null && "id" in value && typeof value.id === "string" && !("error" in value);
 }
 
-/** Types a tool from its own input schema. */
+/**
+ * Runs a tool on input nobody has checked, such as a model's tool call. A
+ * mismatch comes back as error data naming each field, so the model can fix
+ * the call. Frameworks check input too, but a direct call or an adapter that
+ * hands raw input through relies on this.
+ */
+export async function runUnchecked<I extends z.ZodType>(d: ToolDefinition<I>, input: unknown): Promise<unknown> {
+  const parsed = d.input.safeParse(input);
+  if (parsed.success) return d.run(parsed.data);
+  const problems = parsed.error.issues.map((i) => `${i.path.length > 0 ? i.path.map(String).join(".") : "input"}: ${i.message}`);
+  return { error: { code: "VALIDATION_ERROR", message: `Invalid input for ${d.name}. ${problems.join(". ")}.` } };
+}
+
+/** Types a tool from its own input schema, and checks that input on every run. */
 function define<I extends z.ZodType>(d: ToolDefinition<I>): ToolDefinition<I> {
-  return d;
+  return { ...d, run: (input) => runUnchecked(d, input) };
 }
 
 type Job = Awaited<ReturnType<RendobarClient["jobs"]["get"]>>;

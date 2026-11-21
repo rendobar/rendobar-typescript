@@ -7,7 +7,8 @@
  *   const agent = createAgent({ model, tools: rendobarTools() });
  */
 import { tool, type DynamicStructuredTool } from "@langchain/core/tools";
-import { rendobarToolDefinitions, type ToolkitOptions } from "./core.js";
+import type { z } from "zod";
+import { rendobarToolDefinitions, runUnchecked, type ToolDefinition, type ToolkitOptions } from "./core.js";
 
 export type { ToolkitOptions } from "./core.js";
 
@@ -20,12 +21,23 @@ export type { ToolkitOptions } from "./core.js";
  */
 export type RendobarTools = [DynamicStructuredTool, DynamicStructuredTool, DynamicStructuredTool, DynamicStructuredTool];
 
+/**
+ * LangChain parses a tool's input before calling it and throws
+ * ToolInputParsingException on a mismatch, which rejects a LangGraph tool node.
+ * So LangChain parses with a catch that hands any input through, and the tool
+ * checks the input itself, answering a mismatch with error data like every
+ * other failure. A catch converts to its inner JSON Schema, so the model sees
+ * the same schema.
+ */
+function langchainTool<I extends z.ZodType>(d: ToolDefinition<I>): DynamicStructuredTool {
+  const schema: z.ZodType = d.input;
+  // zod's JSON Schema conversion calls the catch with no context, looking for a
+  // static default. Answering undefined adds none to the schema the model sees.
+  const lenient = schema.catch((ctx: z.core.$ZodCatchCtx | undefined) => ctx?.input);
+  return tool((input) => runUnchecked(d, input), { name: d.name, description: d.description, schema: lenient });
+}
+
 export function rendobarTools(options: ToolkitOptions = {}): RendobarTools {
   const d = rendobarToolDefinitions(options);
-  return [
-    tool((input) => d.list_job_types.run(input), { name: d.list_job_types.name, description: d.list_job_types.description, schema: d.list_job_types.input }),
-    tool((input) => d.run_job.run(input), { name: d.run_job.name, description: d.run_job.description, schema: d.run_job.input }),
-    tool((input) => d.get_job.run(input), { name: d.get_job.name, description: d.get_job.description, schema: d.get_job.input }),
-    tool((input) => d.probe_media.run(input), { name: d.probe_media.name, description: d.probe_media.description, schema: d.probe_media.input }),
-  ];
+  return [langchainTool(d.list_job_types), langchainTool(d.run_job), langchainTool(d.get_job), langchainTool(d.probe_media)];
 }
