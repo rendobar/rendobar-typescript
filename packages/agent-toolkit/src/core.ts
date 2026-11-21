@@ -40,13 +40,38 @@ function define<I extends z.ZodType>(d: ToolDefinition<I>): ToolDefinition<I> {
   return d;
 }
 
+type Job = Awaited<ReturnType<RendobarClient["jobs"]["get"]>>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * An ffprobe result carries a `summary` and ffprobe's own raw sections, which
+ * repeat it at several times the size. The model gets the summary unless it
+ * asked for raw. Output in another shape (a non-JSON writer, no summary) is what
+ * the command asked for and passes through whole.
+ */
+function modelData(type: string, data: unknown, raw: boolean): { data: unknown; trimmed: boolean } {
+  if (raw || type !== "ffprobe" || !isRecord(data) || !("summary" in data)) return { data, trimmed: false };
+  const { summary, warnings, reportUrl } = data;
+  return {
+    data: { summary, ...(warnings === undefined ? {} : { warnings }), ...(reportUrl === undefined ? {} : { reportUrl }) },
+    trimmed: true,
+  };
+}
+
 /** What an agent needs from a job, and nothing it would have to wade through. */
-function summarize(job: Awaited<ReturnType<RendobarClient["jobs"]["get"]>>): Record<string, unknown> {
+function summarize(job: Job, raw: boolean): Record<string, unknown> {
   const out: Record<string, unknown> = { id: job.id, type: job.type, status: job.status };
   if (job.status === "complete") {
     out.url = outputUrl(job) ?? null;
     out.files = job.output.files.map((f) => ({ url: f.url, type: f.type, path: f.path, size: f.size }));
-    if (job.output.data !== null) out.data = job.output.data;
+    if (job.output.data !== null) {
+      const { data, trimmed } = modelData(job.type, job.output.data, raw);
+      out.data = data;
+      if (trimmed) out.hint = "This is ffprobe's summary. For its full raw output, call get_job with this id and raw: true.";
+    }
   }
   if (job.status === "failed") out.error = { code: job.error.code, message: job.error.message };
   if (job.cost) out.cost = job.cost.formatted;
@@ -78,7 +103,7 @@ async function guarded(fn: () => Promise<unknown>): Promise<unknown> {
  */
 async function waitFor(rb: RendobarClient, id: string): Promise<unknown> {
   try {
-    return summarize(await rb.jobs.wait(id, { throwOnFailure: false }));
+    return summarize(await rb.jobs.wait(id, { throwOnFailure: false }), false);
   } catch (e) {
     const status = e instanceof WaitTimeoutError ? e.lastStatus : "unknown";
     const message = (e instanceof Error ? e.message : String(e)).replace(/\.?$/, ".");
@@ -161,9 +186,13 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
 
   const getJob = define({
     name: "get_job",
-    description: "Get a Rendobar job's current status and, once complete, its output URL, files and data.",
-    input: z.object({ id: z.string().describe("Job id, such as job_abc123") }),
-    run: ({ id }) => guarded(async () => summarize(await rb.jobs.get(id))),
+    description:
+      "Get a Rendobar job's current status and, once complete, its output URL, files and data. An ffprobe job returns its summary unless `raw` is true.",
+    input: z.object({
+      id: z.string().describe("Job id, such as job_abc123"),
+      raw: z.boolean().optional().describe("Return the job's full output data, such as every raw ffprobe section. Off by default"),
+    }),
+    run: ({ id, raw }) => guarded(async () => summarize(await rb.jobs.get(id), raw === true)),
   });
 
   const probeMedia = define({
