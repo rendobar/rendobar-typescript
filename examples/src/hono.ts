@@ -6,7 +6,9 @@ import { serve } from "@hono/node-server";
 import { createClient } from "@rendobar/sdk";
 import { verifyWebhook } from "@rendobar/sdk/webhooks";
 
-export function createApp(rb = createClient(), webhookSecret = process.env.RENDOBAR_WEBHOOK_SECRET ?? "") {
+export function createApp(rb = createClient(), webhookSecret = process.env.RENDOBAR_WEBHOOK_SECRET) {
+  // Fail at startup, not on the first delivery: an unset secret must never reach verifyWebhook.
+  if (!webhookSecret) throw new Error("Set RENDOBAR_WEBHOOK_SECRET to the endpoint's signing secret.");
   const app = new Hono();
 
   app.post("/videos", async (c) => {
@@ -18,8 +20,8 @@ export function createApp(rb = createClient(), webhookSecret = process.env.RENDO
   app.post("/rendobar-webhook", async (c) => {
     const body = await c.req.text();
     if (!(await verifyWebhook(body, c.req.raw.headers, webhookSecret))) return c.body(null, 401);
-    const event = JSON.parse(body) as { event: string; data: { id: string } };
-    console.log(event.event, event.data.id);
+    const event = JSON.parse(body) as { event: string; data: { jobId: string } };
+    console.log(event.event, event.data.jobId);
     return c.body(null, 204);
   });
 

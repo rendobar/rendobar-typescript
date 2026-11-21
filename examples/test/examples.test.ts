@@ -19,7 +19,8 @@ function signed(body: string): Record<string, string> {
   return { "content-type": "application/json", "x-rendobar-timestamp": ts, "x-rendobar-signature": `sha256=${sig}` };
 }
 
-const event = JSON.stringify({ event: "job.completed", data: { id: "job_1" } });
+// The same envelope a real delivery carries (rendobar/openapi conformance/webhook-vectors.json).
+const event = JSON.stringify({ version: "1", event: "job.completed", data: { jobId: "job_1" } });
 type Call = (path: string, init: RequestInit) => Promise<Response>;
 
 function suite(name: string, call: () => Promise<Call>) {
@@ -52,6 +53,13 @@ suite("Express", async () => {
   await new Promise((r) => server.once("listening", r));
   const { port } = server.address() as AddressInfo; // listen(0) on TCP always yields an AddressInfo
   return (path, init) => fetch(`http://127.0.0.1:${port}${path}`, init);
+});
+
+describe("startup", () => {
+  it("refuses to start without a webhook secret", () => {
+    expect(() => expressApp(rb(), "")).toThrow(/RENDOBAR_WEBHOOK_SECRET/);
+    expect(() => honoApp(rb(), "")).toThrow(/RENDOBAR_WEBHOOK_SECRET/);
+  });
 });
 
 suite("Hono", async () => {
