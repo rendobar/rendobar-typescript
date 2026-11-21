@@ -256,6 +256,24 @@ async function submit(rb: RendobarClient, body: CreateJobParams, options: RunOpt
   }
 }
 
+/**
+ * A URL that reaches the ffprobe command as exactly one argument. The API
+ * splits the command on whitespace and quotes, and treats a token starting
+ * with `-` as a flag, so a URL carrying any of those could add flags to a
+ * billed job. Only http and https: anything else is not a media URL here.
+ *
+ * The characters are checked on the raw value, first: the URL check parses
+ * with WHATWG rules, which silently drop a tab or newline, so checking after
+ * it would accept "https://x/a.mp4<tab>-f" as a different URL than was sent.
+ */
+const mediaUrl = z
+  .string()
+  .check(
+    z.refine((url: string) => !/[\s"'\\]/.test(url), { message: "A media URL cannot contain whitespace, quotes or backslashes", abort: true }),
+    z.url({ protocol: /^https?$/ }),
+  )
+  .describe("Public or signed http(s) URL of the media file");
+
 /** The four tools with their adapter-only step, for the adapters in this package (not exported from it). */
 export function buildTools(options: ToolkitOptions) {
   // A client the caller built keeps its own attribution. Ours names this package, not the SDK.
@@ -340,7 +358,7 @@ export function buildTools(options: ToolkitOptions) {
     },
   });
 
-  const probeInput = z.object({ url: z.string().url().describe("Public or signed URL of the media file") });
+  const probeInput = z.object({ url: mediaUrl });
   const probeMedia = define<typeof probeInput, JobResult>({
     name: "probe_media",
     description: "Inspect a media file by URL: duration, format, streams, codecs, resolution, frame rate. Runs as a short ffprobe job, billed like any other job.",

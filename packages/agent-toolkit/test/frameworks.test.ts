@@ -45,7 +45,7 @@ describe("every framework", () => {
 
   it("answers the same bad input with the same VALIDATION_ERROR result", async () => {
     const client = mockClient();
-    const bad = { url: "not a url" };
+    const bad = { url: "https://x/a.mp4 -show_frames" };
     const expected = await buildTools({ client }).probe_media.run(bad);
     const ai = aiSdkTools({ client });
     const mastra = mastraTools({ client });

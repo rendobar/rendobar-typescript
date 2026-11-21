@@ -34,12 +34,52 @@ describe("input checks", () => {
   it("names the field, in the problems shape an API refusal uses, and sends nothing", async () => {
     const { client, sent } = recording();
 
-    const result = await rendobarToolDefinitions({ client }).probe_media.run({ url: "not a url" });
+    const result = await rendobarToolDefinitions({ client }).probe_media.run({ url: "example.com/a.mp4" });
 
     expect(result).toEqual({
       error: { code: "VALIDATION_ERROR", message: "Invalid input for probe_media. url: Invalid URL.", requestId: null, problems: [{ path: ["url"], message: "Invalid URL" }] },
     });
     expect(sent).toEqual([]);
+  });
+
+  it("refuses a URL that could add flags to the ffprobe command, sending nothing", async () => {
+    const { client, sent } = recording();
+    const probe = rendobarToolDefinitions({ client }).probe_media;
+    const attempts = [
+      "https://x/a.mp4 -show_frames -show_packets",
+      "https://x/a.mp4\t-f",
+      "https://x/a.mp4\n-o out",
+      "-show_frames",
+      "https://x/a'b.mp4",
+      'https://x/a"b.mp4',
+      "https://x/a\\b.mp4",
+      "file:///etc/passwd",
+      "javascript:alert(1)",
+      "ftp://x/a.mp4",
+      "data:video/mp4;base64,AAAA",
+    ];
+
+    for (const url of attempts) {
+      expect(await probe.run({ url }), url).toMatchObject({ error: { code: "VALIDATION_ERROR", problems: [{ path: ["url"] }] } });
+    }
+    expect(sent).toEqual([]);
+  });
+
+  it("sends a valid URL as the whole ffprobe command, unchanged", async () => {
+    const bodies: unknown[] = [];
+    const client = createClient({
+      apiKey: "rb_test",
+      baseUrl: "http://api.test",
+      maxRetries: 0,
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ error: { code: "VALIDATION_ERROR", message: "stop here" } }), { status: 400 });
+      },
+    });
+
+    await rendobarToolDefinitions({ client }).probe_media.run({ url: "https://cdn.example.com/a.mp4?sig=x-y&t=1" });
+
+    expect(bodies).toMatchObject([{ type: "ffprobe", params: { command: "https://cdn.example.com/a.mp4?sig=x-y&t=1" } }]);
   });
 
   it("refuses an id that is not a job id before sending anything", async () => {
