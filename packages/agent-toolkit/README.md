@@ -62,6 +62,21 @@ async function runTools(message: AIMessage) {
 
 Install only the framework you use: `ai`, `@mastra/core` and `@langchain/core` are optional peer dependencies.
 
+## Options
+
+Every adapter takes one option, `client`: a client made with `createClient` from `@rendobar/sdk`. Pass one to use a key other than `RENDOBAR_API_KEY`, another API server, or your own timeout and retry settings.
+
+```ts
+import { createClient } from "@rendobar/sdk";
+import { rendobarTools } from "@rendobar/agent-toolkit/ai-sdk";
+
+const tools = rendobarTools({
+  client: createClient({ apiKey: process.env.RENDOBAR_KEY_FOR_AGENTS, baseUrl: "https://api.rendobar.com", timeout: 60_000 }),
+});
+```
+
+Without `client`, the toolkit builds a client that reads `RENDOBAR_API_KEY`. If that is unset, `run_job`, `get_job` and `probe_media` return a `MISSING_API_KEY` error that names it. `list_job_types` needs no key.
+
 ## The tools
 
 | Tool | What the agent can do |
@@ -75,11 +90,13 @@ Install only the framework you use: `ai`, `@mastra/core` and `@langchain/core` a
 
 `probe_media`, and `get_job` on an ffprobe job, return ffprobe's summary and any warnings, which is what an agent needs to plan an edit. Call `get_job` with `raw: true` for every raw ffprobe section.
 
+A job's `cost` appears once billing settles, which is just after the job completes. A result read at completion may have no `cost` yet, and its `hint` says to call `get_job` later.
+
 For an agent that speaks MCP (the OpenAI Agents SDK, the Claude Agent SDK, Mastra), connect `https://api.rendobar.com/mcp` instead.
 
 ## Errors and retries
 
-Errors come back to the model as data, never as a thrown exception that would end the agent loop. An API refusal looks like `{ error: { code, message, requestId } }`.
+Errors come back to the model as data, never as a thrown exception that would end the agent loop. An API refusal looks like `{ error: { code, message, requestId } }`. Input that does not match a tool's schema also comes back as an error the model can correct. The AI SDK and Mastra report it through their own input validation. LangChain tools, and the definitions from `rendobarToolDefinitions()` called directly, return a `VALIDATION_ERROR` that names each field.
 
 Every `run_job` call sends an idempotency key. When a submit fails before Rendobar answers (a dropped connection, a 5xx or a 429), the result also carries the `idempotencyKey` it used. The model can call `run_job` again with that key and the same type, params and inputs, and Rendobar returns the job the first call created instead of starting a second one.
 
