@@ -4,7 +4,7 @@
  *   import { Agent } from "@mastra/core/agent";
  *   import { rendobarTools } from "@rendobar/agent-toolkit/mastra";
  *
- *   const editor = new Agent({ name: "editor", instructions: "...", model, tools: rendobarTools() });
+ *   const editor = new Agent({ id: "editor", name: "Editor", instructions: "...", model, tools: rendobarTools() });
  */
 import { createTool } from "@mastra/core/tools";
 import { rendobarToolDefinitions, type ToolkitOptions } from "./core.js";
