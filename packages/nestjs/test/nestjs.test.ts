@@ -33,6 +33,12 @@ class AppController {
   received(@RendobarEvent() event: WebhookPayload) {
     return { received: event.event };
   }
+
+  @Post("webhooks/unguarded")
+  @HttpCode(200)
+  unguarded(@RendobarEvent() event: WebhookPayload) {
+    return { received: event.event };
+  }
 }
 
 function appModule(module: ReturnType<typeof RendobarModule.forRoot>) {
@@ -84,6 +90,21 @@ describe("RendobarModule.forRootAsync", () => {
 
   it("refuses a webhook whose body was changed after signing", async () => {
     expect((await post(base, signed(EVENT), EVENT.replace("completed", "failed"))).status).toBe(401);
+  });
+
+  it("verifies a signed body of any content type, not only JSON", async () => {
+    const res = await post(base, { ...signed(EVENT), "content-type": "text/plain" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: "job.completed" });
+  });
+
+  it("refuses an unsigned text/plain body", async () => {
+    expect((await post(base, { ...signed(EVENT, "whsec_wrong"), "content-type": "text/plain" })).status).toBe(401);
+  });
+
+  it("answers 500 when @RendobarEvent() is used without the guard", async () => {
+    const res = await fetch(`${base}/webhooks/unguarded`, { method: "POST", headers: signed(EVENT), body: EVENT });
+    expect(res.status).toBe(500);
   });
 
   it("refuses a webhook signed more than five minutes ago", async () => {
