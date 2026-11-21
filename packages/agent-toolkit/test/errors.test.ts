@@ -3,7 +3,7 @@
  * agent loop, so a dropped connection must come back as something to act on.
  */
 import { createClient } from "@rendobar/sdk";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { rendobarToolDefinitions } from "../src/core.js";
 
 describe("tool errors", () => {
@@ -38,5 +38,20 @@ describe("tool errors", () => {
 
     expect(result).toEqual({ error: { code: "VALIDATION_ERROR", message: "Invalid input for probe_media. url: Invalid URL." } });
     expect(sent).toEqual([]);
+  });
+});
+
+describe("no API key", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("says what to configure instead of passing on the API's 401", async () => {
+    vi.stubEnv("RENDOBAR_API_KEY", "");
+    const tools = rendobarToolDefinitions();
+
+    for (const result of [await tools.run_job.run({ type: "ffprobe" }), await tools.get_job.run({ id: "job_1" }), await tools.probe_media.run({ url: "https://x/a.mp4" })]) {
+      expect(result).toMatchObject({ error: { code: "MISSING_API_KEY", message: expect.stringContaining("RENDOBAR_API_KEY") } });
+    }
   });
 });

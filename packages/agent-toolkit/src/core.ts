@@ -55,6 +55,19 @@ function define<I extends z.ZodType>(d: ToolDefinition<I>): ToolDefinition<I> {
   return { ...d, run: (input) => runUnchecked(d, input) };
 }
 
+/** What the SDK reads when no key is passed, read the same way: a missing or empty value is no key. */
+function envApiKey(): string | undefined {
+  const value = typeof process === "undefined" ? undefined : process.env.RENDOBAR_API_KEY;
+  return value === "" ? undefined : value;
+}
+
+const MISSING_API_KEY = {
+  error: {
+    code: "MISSING_API_KEY",
+    message: "No Rendobar API key is configured. Set RENDOBAR_API_KEY, or pass a client made with createClient({ apiKey }) as the toolkit's client option.",
+  },
+};
+
 type Job = Awaited<ReturnType<RendobarClient["jobs"]["get"]>>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -156,6 +169,9 @@ async function submit(rb: RendobarClient, body: Parameters<RendobarClient["jobs"
 export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
   // A client the caller built keeps its own attribution. Ours names this package, not the SDK.
   const rb = options.client ?? createClient({ client: `agent-toolkit/${VERSION}` });
+  // With no key the API answers every authenticated call with a 401 about session cookies.
+  // Say what to configure instead. list_job_types needs no key and keeps working.
+  const keyMissing = options.client === undefined && envApiKey() === undefined;
 
   const listJobTypes = define({
     name: "list_job_types",
@@ -191,6 +207,7 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
         ),
     }),
     run: async ({ type, params, inputs, wait, idempotencyKey }) => {
+      if (keyMissing) return MISSING_API_KEY;
       const body = { type, params: params ?? {}, ...(inputs === undefined ? {} : { inputs }), ...(idempotencyKey === undefined ? {} : { idempotencyKey }) };
       // Only the submit may be retried by the model. Once a job exists, failures say so.
       const created = await submit(rb, body);
@@ -207,7 +224,10 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
       id: z.string().describe("Job id, such as job_abc123"),
       raw: z.boolean().optional().describe("Return the job's full output data, such as every raw ffprobe section. Off by default"),
     }),
-    run: ({ id, raw }) => guarded(async () => summarize(await rb.jobs.get(id), raw === true)),
+    run: async ({ id, raw }) => {
+      if (keyMissing) return MISSING_API_KEY;
+      return guarded(async () => summarize(await rb.jobs.get(id), raw === true));
+    },
   });
 
   const probeMedia = define({
@@ -215,6 +235,7 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
     description: "Inspect a media file by URL: duration, format, streams, codecs, resolution, frame rate. Runs as a short ffprobe job, billed like any other job.",
     input: z.object({ url: z.string().url().describe("Public or signed URL of the media file") }),
     run: async ({ url }) => {
+      if (keyMissing) return MISSING_API_KEY;
       const created = await submit(rb, { type: "ffprobe", params: { command: url } });
       return isCreated(created) ? waitFor(rb, created.id) : created;
     },
