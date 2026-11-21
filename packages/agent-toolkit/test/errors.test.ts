@@ -6,6 +6,20 @@ import { createClient } from "@rendobar/sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rendobarToolDefinitions } from "../src/core.js";
 
+/** A client that records every URL it would fetch, for tests that must send nothing. */
+function recording(apiKey?: string) {
+  const sent: string[] = [];
+  const client = createClient({
+    ...(apiKey === undefined ? {} : { apiKey }),
+    baseUrl: "http://api.test",
+    fetch: async (url) => {
+      sent.push(String(url));
+      return new Response("{}");
+    },
+  });
+  return { client, sent };
+}
+
 describe("tool errors", () => {
   it("returns a network failure as an error object instead of throwing", async () => {
     const client = createClient({
@@ -24,15 +38,7 @@ describe("tool errors", () => {
   });
 
   it("checks input itself, so a bad url names url and sends nothing", async () => {
-    const sent: string[] = [];
-    const client = createClient({
-      apiKey: "rb_test",
-      baseUrl: "http://api.test",
-      fetch: async (url) => {
-        sent.push(String(url));
-        return new Response("{}");
-      },
-    });
+    const { client, sent } = recording("rb_test");
 
     const result = await rendobarToolDefinitions({ client }).probe_media.run({ url: "not a url" });
 
@@ -45,15 +51,7 @@ describe("tool errors", () => {
 
 describe("job ids", () => {
   it("refuses an id that is not a job id before sending anything", async () => {
-    const sent: string[] = [];
-    const client = createClient({
-      apiKey: "rb_test",
-      baseUrl: "http://api.test",
-      fetch: async (url) => {
-        sent.push(String(url));
-        return new Response("{}");
-      },
-    });
+    const { client, sent } = recording("rb_test");
     const tools = rendobarToolDefinitions({ client });
 
     for (const id of ["", "a/b", ".."]) {
@@ -70,14 +68,7 @@ describe("no API key", () => {
 
   it("returns the SDK's local MISSING_API_KEY as data, sending nothing", async () => {
     vi.stubEnv("RENDOBAR_API_KEY", "");
-    const sent: string[] = [];
-    const keyless = createClient({
-      baseUrl: "http://api.test",
-      fetch: async (url) => {
-        sent.push(String(url));
-        return new Response("{}");
-      },
-    });
+    const { client: keyless, sent } = recording();
 
     for (const tools of [rendobarToolDefinitions(), rendobarToolDefinitions({ client: keyless })]) {
       for (const result of [await tools.run_job.run({ type: "ffprobe" }), await tools.get_job.run({ id: "job_1" }), await tools.probe_media.run({ url: "https://x/a.mp4" })]) {
