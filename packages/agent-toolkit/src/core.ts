@@ -3,9 +3,15 @@
  * these four in its framework's tool shape and adds nothing else, so every
  * framework sees the same tools with the same behaviour.
  *
- * The verbs match Rendobar's MCP server, so an agent behaves the same through
- * either. Descriptions never list job types: `list_job_types` reads the live
- * registry, so a new job type reaches every agent with no release.
+ * list_job_types, get_job and probe_media share their names with Rendobar's MCP
+ * server. run_job is MCP's submit_job plus the wait for the result. Descriptions
+ * never list job types: `list_job_types` reads the live registry, so a new job
+ * type reaches every agent with no release.
+ *
+ * Optional inputs are `.optional()`, never `.default()`: a default makes a field
+ * required in a schema converted for output (LangChain's OpenAI conversion) and
+ * optional in one converted for input (the AI SDK, Mastra), so the model would
+ * see a different contract per framework.
  */
 import { createClient, isApiError, outputUrl, WaitTimeoutError, type RendobarClient } from "@rendobar/sdk";
 import { z } from "zod";
@@ -132,20 +138,20 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
       "Run a Rendobar media job and return its result: status, output URL, files and data. Waits until the job finishes unless `wait` is false. Get valid `type` values and params from list_job_types first. URLs in params or inputs must be public or signed.",
     input: z.object({
       type: z.string().describe("Job type, from list_job_types"),
-      params: z.record(z.string(), z.unknown()).default({}).describe("Params for this job type, per its schema"),
+      params: z.record(z.string(), z.unknown()).optional().describe("Params for this job type, per its schema. Omitted means {}"),
       inputs: z.record(z.string(), z.unknown()).optional().describe("Named input files, as URLs"),
-      wait: z.boolean().default(true).describe("Wait for the job to finish. False returns the created job at once"),
+      wait: z.boolean().optional().describe("Wait for the job to finish (the default). False returns the created job at once"),
       idempotencyKey: z
         .string()
         .optional()
         .describe("Reuse the key a failed run_job returned to retry it without creating a second job. Omit on a first call"),
     }),
     run: async ({ type, params, inputs, wait, idempotencyKey }) => {
-      const body = { type, params, ...(inputs === undefined ? {} : { inputs }), ...(idempotencyKey === undefined ? {} : { idempotencyKey }) };
+      const body = { type, params: params ?? {}, ...(inputs === undefined ? {} : { inputs }), ...(idempotencyKey === undefined ? {} : { idempotencyKey }) };
       // Only the submit may be retried by the model. Once a job exists, failures say so.
       const created = await submit(rb, body);
       if (!isCreated(created)) return created;
-      return wait ? waitFor(rb, created.id) : created;
+      return wait === false ? created : waitFor(rb, created.id);
     },
   });
 

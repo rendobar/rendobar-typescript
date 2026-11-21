@@ -3,8 +3,12 @@
  * tool interface against the shared conformance mock. Same tools, same
  * behaviour as the AI SDK adapter: errors come back as data.
  */
+import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
+import { zodToJsonSchema } from "@mastra/core/utils/zod-to-json";
 import { createClient } from "@rendobar/sdk";
+import { asSchema, type FlexibleSchema } from "ai";
 import { beforeEach, describe, expect, it } from "vitest";
+import { rendobarTools as aiSdkTools } from "../src/ai-sdk.js";
 import { rendobarTools as langchainTools } from "../src/langchain.js";
 import { rendobarTools as mastraTools } from "../src/mastra.js";
 
@@ -35,5 +39,35 @@ describe("LangChain.js adapter", () => {
     expect((created as { id: string }).id).toMatch(/^job_/);
     const missing = await getJob.invoke({ id: "job_404" });
     expect(missing).toMatchObject({ error: { code: "NOT_FOUND" } });
+  });
+});
+
+/** The `required` list of a JSON Schema, sorted, or [] when it has none. */
+function required(schema: unknown): string[] {
+  if (typeof schema !== "object" || schema === null || !("required" in schema) || !Array.isArray(schema.required)) return [];
+  return schema.required.map(String).sort();
+}
+
+describe("every framework", () => {
+  it("shows the model the same required fields for each tool", async () => {
+    const ai = aiSdkTools({ client: client() });
+    const mastra = mastraTools({ client: client() });
+    const seen: Record<string, string[][]> = {};
+    for (const t of langchainTools({ client: client() })) {
+      // LangChain names its tools at runtime; the list is the same four keys as the other adapters.
+      const name = t.name as keyof typeof ai;
+      const aiSchema: FlexibleSchema<unknown> = ai[name].inputSchema;
+      seen[name] = [
+        required(convertToOpenAITool(t).function.parameters),
+        required(await asSchema(aiSchema).jsonSchema),
+        required(zodToJsonSchema(mastra[name].inputSchema)),
+      ];
+    }
+    expect(seen).toEqual({
+      list_job_types: [[], [], []],
+      run_job: [["type"], ["type"], ["type"]],
+      get_job: [["id"], ["id"], ["id"]],
+      probe_media: [["url"], ["url"], ["url"]],
+    });
   });
 });

@@ -82,6 +82,23 @@ describe("run_job", () => {
     expect(refused).toEqual({ error: { code: "VALIDATION_ERROR", message: "no", requestId: null } });
   });
 
+  it("waits by default and sends {} when params are omitted", async () => {
+    const bodies: unknown[] = [];
+    const client = createClient({
+      apiKey: "rb_test",
+      baseUrl: MOCK,
+      fetch: async (url, init) => {
+        if (init?.method === "POST") bodies.push(JSON.parse(String(init.body)));
+        return fetch(url, init);
+      },
+    });
+
+    const result = await rendobarToolDefinitions({ client }).run_job.run({ type: "ffprobe" });
+
+    expect(bodies).toEqual([expect.objectContaining({ type: "ffprobe", params: {} })]);
+    expect(result).toMatchObject({ status: "complete" });
+  });
+
   it("reads a job type's schema through the caller's client", async () => {
     const seen: string[] = [];
     const client = createClient({
