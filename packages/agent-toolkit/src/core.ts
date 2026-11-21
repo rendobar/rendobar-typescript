@@ -143,7 +143,7 @@ async function waitFor(rb: RendobarClient, id: string): Promise<unknown> {
   }
 }
 
-/** `sdk_` plus 32 hex characters, the same shape the SDK and the Python agents use. */
+/** `sdk_` plus 32 hex characters, the same shape the SDK uses for its own keys. */
 function newIdempotencyKey(): string {
   return `sdk_${crypto.randomUUID().replaceAll("-", "")}`;
 }
