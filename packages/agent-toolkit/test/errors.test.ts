@@ -43,6 +43,26 @@ describe("tool errors", () => {
   });
 });
 
+describe("job ids", () => {
+  it("refuses an id that is not a job id before sending anything", async () => {
+    const sent: string[] = [];
+    const client = createClient({
+      apiKey: "rb_test",
+      baseUrl: "http://api.test",
+      fetch: async (url) => {
+        sent.push(String(url));
+        return new Response("{}");
+      },
+    });
+    const tools = rendobarToolDefinitions({ client });
+
+    for (const id of ["", "a/b", ".."]) {
+      expect(await tools.get_job.run({ id })).toMatchObject({ error: { code: "INVALID_ARGUMENT" } });
+    }
+    expect(sent).toEqual([]);
+  });
+});
+
 describe("no API key", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
