@@ -59,9 +59,9 @@ describe("run_job", () => {
 
     const first = await rendobarToolDefinitions({ client: down }).run_job.run({ type: "ffprobe", params: { command: "https://x/a.mp4" }, wait: false });
 
-    expect(first).toMatchObject({ idempotencyKey: expect.stringMatching(/^sdk_[0-9a-f]{32}$/), error: { code: "REQUEST_FAILED" } });
+    expect(first).toMatchObject({ error: { code: "REQUEST_FAILED", idempotencyKey: expect.stringMatching(/^sdk_[0-9a-f]{32}$/) } });
     expect(first).not.toHaveProperty("id");
-    const key = (first as { idempotencyKey: string }).idempotencyKey;
+    const key = (first as { error: { idempotencyKey: string } }).error.idempotencyKey;
     expect(keys).toEqual([key]);
   });
 
@@ -78,7 +78,7 @@ describe("run_job", () => {
     const limited = await rendobarToolDefinitions({ client: answering(429, "RATE_LIMITED") }).run_job.run(params);
     const refused = await rendobarToolDefinitions({ client: answering(400, "VALIDATION_ERROR") }).run_job.run(params);
 
-    expect(limited).toMatchObject({ idempotencyKey: expect.stringMatching(/^sdk_/), error: { code: "RATE_LIMITED" } });
+    expect(limited).toMatchObject({ error: { code: "RATE_LIMITED", idempotencyKey: expect.stringMatching(/^sdk_/) } });
     expect(refused).toEqual({ error: { code: "VALIDATION_ERROR", message: "no", requestId: null } });
   });
 

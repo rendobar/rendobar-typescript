@@ -149,10 +149,11 @@ function newIdempotencyKey(): string {
 }
 
 /**
- * Submits a job. A failure before the job exists comes back with the key it
- * used: a lost response may hide a created job, and only the same key makes a
- * retry return that job instead of billing a second one. A refusal (a 4xx other
- * than 429) created nothing and carries no key: the call itself must change.
+ * Submits a job. A failure after which the job may exist (no answer, a 429 or a
+ * 5xx) comes back with the key it used inside `error`, as every Rendobar SDK
+ * reports a cut-off submit: only the same key makes a retry return that job
+ * instead of billing a second one. A refusal (a 4xx other than 429) created
+ * nothing and carries no key: the call itself must change.
  */
 async function submit(rb: RendobarClient, body: Parameters<RendobarClient["jobs"]["create"]>[0]): Promise<unknown> {
   const idempotencyKey = body.idempotencyKey ?? newIdempotencyKey();
@@ -166,7 +167,7 @@ async function submit(rb: RendobarClient, body: Parameters<RendobarClient["jobs"
     }
     const code = isApiError(e) ? e.code : "REQUEST_FAILED";
     const message = (e instanceof Error ? e.message : String(e)).replace(/\.?$/, ".");
-    return { error: { code, message: `${message} The call can be retried with this idempotencyKey.` }, idempotencyKey };
+    return { error: { code, message: `${message} The call can be retried with this idempotencyKey.`, idempotencyKey } };
   }
 }
 
