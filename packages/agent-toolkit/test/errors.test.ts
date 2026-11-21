@@ -100,6 +100,15 @@ describe("input checks", () => {
     expect(bodies).toMatchObject([{ type: "ffprobe", params: { command: "https://cdn.example.com/a.mp4?sig=x-y&t=1" } }]);
   });
 
+  it("refuses an empty job type for list_job_types instead of asking the API", async () => {
+    const { client, sent } = recording();
+
+    const result = await rendobarToolDefinitions({ client }).list_job_types.run({ type: "" });
+
+    expect(result).toMatchObject({ error: { code: "VALIDATION_ERROR", problems: [{ path: ["type"] }] } });
+    expect(sent).toEqual([]);
+  });
+
   it("refuses an id that is not a job id before sending anything", async () => {
     const { client, sent } = recording();
     const tools = rendobarToolDefinitions({ client });

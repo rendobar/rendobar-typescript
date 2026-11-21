@@ -264,10 +264,12 @@ async function submit(rb: RendobarClient, body: CreateJobParams, options: RunOpt
 }
 
 /**
- * A URL that reaches the ffprobe command as exactly one argument. The API
- * splits the command on whitespace and quotes, and treats a token starting
- * with `-` as a flag, so a URL carrying any of those could add flags to a
- * billed job. Only http and https: anything else is not a media URL here.
+ * The one media URL check, for probe_media's url and run_job's inputs: http or
+ * https only, so no file:, javascript: or data: URL reaches a job. For
+ * probe_media it is also what makes the URL reach the ffprobe command as
+ * exactly one argument: the API splits the command on whitespace and quotes,
+ * and treats a token starting with `-` as a flag, so a URL carrying any of
+ * those could add flags to a billed job.
  *
  * The characters are checked on the raw value, first: the URL check parses
  * with WHATWG rules, which silently drop a tab or newline, so checking after
@@ -291,7 +293,7 @@ export function buildTools(options: ToolkitOptions) {
     description:
       "List what Rendobar can do right now: every live media job type (video, audio, image, captions, compose, AI generation) with its use cases. Pass `type` to get that type's params schema and input names. Call this before run_job.",
     input: z.object({
-      type: z.string().optional().describe("A job type from the list, to get its params schema"),
+      type: z.string().min(1).optional().describe("A job type from the list, to get its params schema"),
       full: z.boolean().optional().describe("Return the type's complete schema even when it is very large. Off by default"),
     }),
     execute: async ({ type, full }, opts) => {
@@ -320,12 +322,13 @@ export function buildTools(options: ToolkitOptions) {
   });
 
   const runJobInput = z.object({
-    type: z.string().describe("Job type, from list_job_types"),
+    type: z.string().min(1).describe("Job type, from list_job_types"),
     params: z.record(z.string(), z.unknown()).optional().describe("Params for this job type, per its schema. Omitted means {}"),
-    inputs: z.record(z.string(), z.url()).optional().describe("Named input files, each a URL"),
+    inputs: z.record(z.string(), mediaUrl).optional().describe("Named input files, each a public or signed http(s) URL"),
     wait: z.boolean().optional().describe("Wait for the job to finish (the default). False returns the job as soon as it is created"),
     idempotencyKey: z
       .string()
+      .min(1)
       .optional()
       .describe("Reuse the key a failed run_job returned to retry it with the same type, params and inputs, without creating a second job. Omit on a first call"),
   });

@@ -6,7 +6,7 @@
 import { createClient, WaitTimeoutError } from "@rendobar/sdk";
 import { beforeEach, describe, expect, it } from "vitest";
 import { rendobarToolDefinitions } from "../src/core.js";
-import { answering, createdCount, MOCK, mockClient, requests, reset } from "./helpers.js";
+import { answering, createdCount, MOCK, mockClient, recording, requests, reset } from "./helpers.js";
 
 beforeEach(() => reset());
 
@@ -107,6 +107,23 @@ describe("run_job", () => {
 
     expect(limited).toMatchObject({ error: { code: "RATE_LIMITED", idempotencyKey: expect.stringMatching(/^sdk_/) } });
     expect(refused).toEqual({ error: { code: "VALIDATION_ERROR", message: "no", requestId: null } });
+  });
+
+  it("refuses an empty idempotency key and an input that is not an http(s) URL, sending nothing", async () => {
+    const { client, sent } = recording();
+    const runJob = rendobarToolDefinitions({ client }).run_job;
+
+    const attempts = [
+      { type: "ffmpeg", idempotencyKey: "" },
+      { type: "ffmpeg", inputs: { source: "file:///etc/passwd" } },
+      { type: "ffmpeg", inputs: { source: "javascript:1" } },
+      { type: "ffmpeg", inputs: { source: "https://x/a.mp4 -f" } },
+      { type: "" },
+    ];
+    for (const input of attempts) {
+      expect(await runJob.run(input), JSON.stringify(input)).toMatchObject({ error: { code: "VALIDATION_ERROR", requestId: null } });
+    }
+    expect(sent).toEqual([]);
   });
 
   it("hands the model each problem the API listed on a refused submit", async () => {
