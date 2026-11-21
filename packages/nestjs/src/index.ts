@@ -107,9 +107,14 @@ export class RendobarSignatureGuard implements CanActivate {
   }
 }
 
-/** The verified webhook envelope (`event`, `data`, ...), parsed from the body. */
-export const RendobarEvent = createParamDecorator((_: unknown, context: ExecutionContext) => {
+/**
+ * The verified webhook envelope, parsed from the body. Type the parameter as
+ * `WebhookPayload` and switch on `event.event`: `event.data` narrows to that
+ * event's shape. Use it behind RendobarSignatureGuard, which is what makes the
+ * body trustworthy.
+ */
+export const RendobarEvent: () => ParameterDecorator = createParamDecorator((_: unknown, context: ExecutionContext): unknown => {
   return context.switchToHttp().getRequest<RawRequest>().body;
 });
 
-export type { RendobarClient } from "@rendobar/sdk";
+export type { RendobarClient, WebhookEventDataMap, WebhookPayload } from "@rendobar/sdk";

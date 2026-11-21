@@ -8,7 +8,7 @@ import { createHmac } from "node:crypto";
 import { Controller, Get, HttpCode, Injectable, Module, Post, UseGuards, type INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { InjectRendobar, RendobarEvent, RendobarModule, RendobarSignatureGuard, type RendobarClient } from "../src/index";
+import { InjectRendobar, RendobarEvent, RendobarModule, RendobarSignatureGuard, type RendobarClient, type WebhookPayload } from "../src/index";
 
 const MOCK = process.env.RENDOBAR_MOCK ?? "http://127.0.0.1:4100";
 const SECRET = "whsec_" + "c".repeat(64);
@@ -30,7 +30,7 @@ class AppController {
   @Post("webhooks/rendobar")
   @HttpCode(200)
   @UseGuards(RendobarSignatureGuard)
-  received(@RendobarEvent() event: { event: string }) {
+  received(@RendobarEvent() event: WebhookPayload) {
     return { received: event.event };
   }
 }
