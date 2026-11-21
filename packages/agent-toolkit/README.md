@@ -90,15 +90,15 @@ Without `client`, the toolkit builds a client that reads `RENDOBAR_API_KEY`. If 
 
 `probe_media`, and `get_job` on an ffprobe job, return ffprobe's summary and any warnings, which is what an agent needs to plan an edit. Call `get_job` with `raw: true` for every raw ffprobe section.
 
-A job's `cost` appears once billing settles, which is just after the job completes. A result read at completion may have no `cost` yet, and its `hint` says to call `get_job` later.
+A job's `cost` is `{ amount, currency, formatted }`, where `amount` is integer nanodollars (1 USD is 1,000,000,000) and `formatted` reads like `$0.0010`. It appears once billing settles, which is just after the job completes. A result read at completion may have no `cost` yet, and its `hint` says to call `get_job` later.
 
 For an agent that speaks MCP (the OpenAI Agents SDK, the Claude Agent SDK, Mastra), connect `https://api.rendobar.com/mcp` instead.
 
 ## Errors and retries
 
-Errors come back to the model as data, never as a thrown exception that would end the agent loop. An API refusal looks like `{ error: { code, message, requestId } }`. Input that does not match a tool's schema also comes back as an error the model can correct. The AI SDK and Mastra report it through their own input validation. LangChain tools, and the definitions from `rendobarToolDefinitions()` called directly, return a `VALIDATION_ERROR` that names each field.
+Errors come back to the model as data, never as a thrown exception that would end the agent loop. An API refusal looks like `{ error: { code, message, requestId } }`. When the API lists what it refused (a `VALIDATION_ERROR`, `PLAN_LIMIT` or `FEATURE_NOT_ENABLED`), `error.problems` carries each one as `{ path, message }`, plus `upgradeTo` when a higher plan would allow it. Input that does not match a tool's schema also comes back as an error the model can correct. The AI SDK and Mastra report it through their own input validation. LangChain tools, and the definitions from `rendobarToolDefinitions()` called directly, return a `VALIDATION_ERROR` with the same `problems` list.
 
-Every `run_job` call sends an idempotency key. When a submit fails before Rendobar answers (a dropped connection, a 5xx or a 429), the result also carries the `idempotencyKey` it used. The model can call `run_job` again with that key and the same type, params and inputs, and Rendobar returns the job the first call created instead of starting a second one.
+Every `run_job` call sends an idempotency key. When a submit fails before Rendobar answers (a dropped connection, a 5xx or a 429), `error.idempotencyKey` carries the key it sent. The model can call `run_job` again with that key and the same type, params and inputs, and Rendobar returns the job the first call created instead of starting a second one.
 
 Reusing a key with a different type, params or inputs is refused with a 409. The model gets `{ error: { code: "CONFLICT", message, requestId } }` and no key to retry with. The message names the job the key already belongs to. To run the new request, call `run_job` without `idempotencyKey`.
 
