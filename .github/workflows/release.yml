@@ -47,7 +47,7 @@ jobs:
         run: |
           python3 -I .openapi/conformance/mock_server.py .openapi/openapi.json 4100 requests.jsonl &
           for i in $(seq 1 20); do curl -sf -X POST http://127.0.0.1:4100/__reset && break; sleep 0.5; done || exit 1
-          pnpm typecheck && pnpm test
+          pnpm typecheck && pnpm readmes && pnpm test
         env:
           RENDOBAR_MOCK: http://127.0.0.1:4100
       - run: pnpm build

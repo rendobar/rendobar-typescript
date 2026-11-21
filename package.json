@@ -6,7 +6,8 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --workspace-concurrency=1 test",
-    "conformance": "tsx conformance/run.mts"
+    "conformance": "tsx conformance/run.mts",
+    "readmes": "tsx scripts/check-readme-snippets.mts"
   },
   "devDependencies": {
     "tsx": "^4.20.6",

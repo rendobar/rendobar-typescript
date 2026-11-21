@@ -5,3 +5,4 @@
 - Commits follow Conventional Commits with the package as scope (`feat(nestjs): ...`). release-please reads them.
 - `pnpm test` needs the conformance mock from rendobar/openapi on `RENDOBAR_MOCK` (CI starts it).
 - Agent tools return errors as data (`{ error: { code, message } }`), never throw into the agent loop.
+- Every `ts` block in a package README is compiled by `pnpm readmes` (CI runs it). Write each block as a complete file. A first line like `// app.module.ts` names it, so another block can import it.
