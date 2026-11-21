@@ -48,12 +48,22 @@ describe("no API key", () => {
     vi.unstubAllEnvs();
   });
 
-  it("says what to configure instead of passing on the API's 401", async () => {
+  it("returns the SDK's local MISSING_API_KEY as data, sending nothing", async () => {
     vi.stubEnv("RENDOBAR_API_KEY", "");
-    const tools = rendobarToolDefinitions();
+    const sent: string[] = [];
+    const keyless = createClient({
+      baseUrl: "http://api.test",
+      fetch: async (url) => {
+        sent.push(String(url));
+        return new Response("{}");
+      },
+    });
 
-    for (const result of [await tools.run_job.run({ type: "ffprobe" }), await tools.get_job.run({ id: "job_1" }), await tools.probe_media.run({ url: "https://x/a.mp4" })]) {
-      expect(result).toMatchObject({ error: { code: "MISSING_API_KEY", message: expect.stringContaining("RENDOBAR_API_KEY") } });
+    for (const tools of [rendobarToolDefinitions(), rendobarToolDefinitions({ client: keyless })]) {
+      for (const result of [await tools.run_job.run({ type: "ffprobe" }), await tools.get_job.run({ id: "job_1" }), await tools.probe_media.run({ url: "https://x/a.mp4" })]) {
+        expect(result).toMatchObject({ error: { code: "MISSING_API_KEY", message: expect.stringContaining("RENDOBAR_API_KEY") } });
+      }
     }
+    expect(sent).toEqual([]);
   });
 });
