@@ -17,12 +17,12 @@ import {
   createParamDecorator,
   DynamicModule,
   ExecutionContext,
-  ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
   Module,
   Provider,
+  UnauthorizedException,
   type FactoryProvider,
   type ModuleMetadata,
 } from "@nestjs/common";
@@ -31,7 +31,8 @@ import { verifyWebhook } from "@rendobar/sdk/webhooks";
 import { VERSION } from "./version";
 
 export const RENDOBAR_CLIENT = Symbol("RENDOBAR_CLIENT");
-export const RENDOBAR_OPTIONS = Symbol("RENDOBAR_OPTIONS");
+// Not exported: it carries the signing secret, and nothing outside this module needs it.
+const RENDOBAR_OPTIONS = Symbol("RENDOBAR_OPTIONS");
 
 export type RendobarModuleOptions = ClientConfig & {
   /** The endpoint's signing secret, for RendobarSignatureGuard. */
@@ -100,7 +101,8 @@ export class RendobarSignatureGuard implements CanActivate {
       throw new InternalServerErrorException("RendobarSignatureGuard needs the raw body: NestFactory.create(AppModule, { rawBody: true }).");
     }
     const ok = await verifyWebhook(req.rawBody.toString("utf8"), req.headers, secret);
-    if (!ok) throw new ForbiddenException("Invalid Rendobar signature");
+    // 401, as the SDK docs and every example answer: the request is not authenticated.
+    if (!ok) throw new UnauthorizedException("Invalid or stale Rendobar signature");
     return true;
   }
 }

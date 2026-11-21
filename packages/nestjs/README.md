@@ -58,6 +58,6 @@ export class WebhooksController {
 }
 ```
 
-A bad or stale signature gets a 403. A missing `webhookSecret` or a missing raw body is a 500 that names the fix.
+A bad or stale signature gets a 401. A missing `webhookSecret` or a missing raw body is a 500 that names the fix.
 
 Supports NestJS 10 and 11. MIT licensed.
