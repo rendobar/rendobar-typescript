@@ -7,17 +7,15 @@
  *   const { text } = await generateText({ model, tools: rendobarTools(), prompt: "Trim this video to 10 seconds: https://..." });
  */
 import { tool, type Tool } from "ai";
+import type { z } from "zod";
 import { rendobarToolDefinitions, type ToolkitOptions } from "./core.js";
 
 export type { ToolkitOptions } from "./core.js";
 
-/** The four Rendobar tools, keyed by the names the model sees. */
-export type RendobarTools = {
-  list_job_types: Tool;
-  run_job: Tool;
-  get_job: Tool;
-  probe_media: Tool;
-};
+type Definitions = ReturnType<typeof rendobarToolDefinitions>;
+
+/** The four Rendobar tools, keyed by the names the model sees. Each keeps its own input type. */
+export type RendobarTools = { [Name in keyof Definitions]: Tool<z.infer<Definitions[Name]["input"]>, unknown> };
 
 export function rendobarTools(options: ToolkitOptions = {}): RendobarTools {
   const d = rendobarToolDefinitions(options);
