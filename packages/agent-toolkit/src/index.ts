@@ -1,1 +1,20 @@
-export { rendobarToolDefinitions, type ToolkitOptions, type ToolDefinition } from "./core.js";
+export { rendobarToolDefinitions, type RendobarToolDefinitions, type RendobarToolName, type RunOptions, type ToolDefinition, type ToolJsonSchema, type ToolkitOptions } from "./core.js";
+export {
+  isToolFailure,
+  type CancelledJob,
+  type CompleteJob,
+  type FailedJob,
+  type JobFile,
+  type JobResult,
+  type JobSummary,
+  type JobTypeList,
+  type JobTypeParams,
+  type JobTypeSummary,
+  type JsonValue,
+  type PendingJob,
+  type ToolError,
+  type ToolErrorCode,
+  type ToolFailure,
+  type ToolResult,
+  type UnknownStatusJob,
+} from "./results.js";

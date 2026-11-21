@@ -4,13 +4,12 @@
  * validates inputs, runs `execute`, and feeds results back exactly as it would
  * with a real model.
  */
-import { createClient } from "@rendobar/sdk";
 import { generateText, stepCountIs } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { rendobarTools } from "../src/ai-sdk.js";
+import { createdCount, mockClient, reset } from "./helpers.js";
 
-const MOCK = process.env.RENDOBAR_MOCK ?? "http://127.0.0.1:4100";
 const usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
   outputTokens: { total: 1, text: 1, reasoning: 0 },
@@ -28,9 +27,7 @@ const done = {
   warnings: [],
 };
 
-beforeEach(async () => {
-  await fetch(`${MOCK}/__reset`, { method: "POST" });
-});
+beforeEach(() => reset());
 
 describe("rendobarTools() in a generateText agent loop", () => {
   it("lists job types, submits a job, and reports a missing job as data", async () => {
@@ -42,36 +39,31 @@ describe("rendobarTools() in a generateText agent loop", () => {
         done,
       ],
     });
-    const client = createClient({ apiKey: "rb_conformance", baseUrl: MOCK });
-
     const result = await generateText({
       model,
-      tools: rendobarTools({ client }),
+      tools: rendobarTools({ client: mockClient() }),
       stopWhen: stepCountIs(5),
       prompt: "Probe this video.",
     });
 
     const outputs = result.steps.flatMap((s) => s.toolResults.map((r) => ({ tool: r.toolName, output: r.output })));
     expect(outputs.map((o) => o.tool)).toEqual(["list_job_types", "run_job", "get_job"]);
-    expect(Array.isArray(outputs[0]?.output)).toBe(true);
-    expect(outputs[1]?.output).toMatchObject({ id: expect.stringMatching(/^job_/) });
+    expect(outputs[0]?.output).toMatchObject({ jobTypes: expect.any(Array) });
+    expect(outputs[1]?.output).toMatchObject({ job: { id: expect.stringMatching(/^job_/) } });
     expect(outputs[2]?.output).toMatchObject({ error: { code: "NOT_FOUND", requestId: expect.stringMatching(/^req_/) } });
     expect(result.text).toBe("Done.");
 
     // One job was created, through the SDK's retry-safe submit.
-    const created = await (await fetch(`${MOCK}/__created`)).json();
-    expect(created.data.count).toBe(1);
+    expect(await createdCount()).toBe(1);
   });
 
-  it("rejects input the schema does not allow before anything is called", async () => {
-    const model = new MockLanguageModelV4({ doGenerate: [call("1", "probe_media", { url: "not a url" }), done] });
-    const client = createClient({ apiKey: "rb_conformance", baseUrl: MOCK });
+  it("answers input the schema does not allow with a VALIDATION_ERROR result the model can fix", async () => {
+    const model = new MockLanguageModelV4({ doGenerate: [call("1", "probe_media", { url: "example.com/a.mp4" }), done] });
 
-    const result = await generateText({ model, tools: rendobarTools({ client }), stopWhen: stepCountIs(3), prompt: "x" });
+    const result = await generateText({ model, tools: rendobarTools({ client: mockClient() }), stopWhen: stepCountIs(3), prompt: "x" });
 
-    const errors = result.steps.flatMap((s) => s.content.filter((c) => c.type === "tool-error"));
-    expect(errors).toHaveLength(1);
-    const created = await (await fetch(`${MOCK}/__created`)).json();
-    expect(created.data.count).toBe(0);
+    const outputs = result.steps.flatMap((s) => s.toolResults.map((r) => r.output));
+    expect(outputs).toEqual([expect.objectContaining({ error: expect.objectContaining({ code: "VALIDATION_ERROR", problems: [{ path: ["url"], message: "Invalid URL" }] }) })]);
+    expect(await createdCount()).toBe(0);
   });
 });

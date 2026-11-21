@@ -7,37 +7,41 @@
  *   const agent = createAgent({ model, tools: rendobarTools() });
  */
 import { tool, type DynamicStructuredTool } from "@langchain/core/tools";
-import type { z } from "zod";
-import { rendobarToolDefinitions, runUnchecked, type ToolDefinition, type ToolkitOptions } from "./core.js";
+import { z } from "zod";
+import { buildTools, runUnchecked, type CoreTool, type RendobarToolName, type ToolkitOptions } from "./core.js";
+import type { JobResult, JobTypeList, JobTypeParams, ToolResult } from "./results.js";
 
 export type { ToolkitOptions } from "./core.js";
 
 /**
- * The four tools in a plain mutable list, as `createAgent` takes them, in this
- * order: list_job_types, run_job, get_job, probe_media. Every entry has the one
- * element type, so `toolsByName[call.name].invoke(call)` type-checks: a union of
- * four differently typed tools has no callable `invoke`. Each tool still checks
- * its input against its own schema when it runs.
+ * The schema LangChain parses with: any object passes, and it carries the
+ * tool's JSON Schema as zod metadata, which zod copies into the JSON Schema it
+ * generates, so the model sees exactly the tool's schema. LangChain parses
+ * input before calling a tool and throws ToolInputParsingException on a
+ * mismatch, which rejects a LangGraph tool node. The tool checks input itself
+ * instead and answers a mismatch with data, as in every other framework.
  */
-export type RendobarTools = [DynamicStructuredTool, DynamicStructuredTool, DynamicStructuredTool, DynamicStructuredTool];
+type LangChainSchema = z.ZodObject<{}, z.core.$loose>;
+type LangChainInput = z.output<LangChainSchema>;
 
-/**
- * LangChain parses a tool's input before calling it and throws
- * ToolInputParsingException on a mismatch, which rejects a LangGraph tool node.
- * So LangChain parses with a catch that hands any input through, and the tool
- * checks the input itself, answering a mismatch with error data like every
- * other failure. A catch converts to its inner JSON Schema, so the model sees
- * the same schema.
- */
-function langchainTool<I extends z.ZodType>(d: ToolDefinition<I>): DynamicStructuredTool {
-  const schema: z.ZodType = d.input;
-  // zod's JSON Schema conversion calls the catch with no context, looking for a
-  // static default. Answering undefined adds none to the schema the model sees.
-  const lenient = schema.catch((ctx: z.core.$ZodCatchCtx | undefined) => ctx?.input);
-  return tool((input) => runUnchecked(d, input), { name: d.name, description: d.description, schema: lenient });
+/** Whatever a Rendobar tool returns: a job, the job type list, one type's params, or a failure. */
+export type RendobarToolResult = ToolResult<JobResult> | ToolResult<JobTypeList | JobTypeParams>;
+
+/** Every Rendobar tool has this one type, so `toolsByName[call.name].invoke(call)` type-checks. */
+export type RendobarLangChainTool = DynamicStructuredTool<LangChainSchema, LangChainInput, LangChainInput, RendobarToolResult, unknown, RendobarToolName>;
+
+function langchainTool<I extends z.ZodType, R extends RendobarToolResult>(d: CoreTool<I, R>): RendobarLangChainTool {
+  const schema: LangChainSchema = z.looseObject({}).meta(d.jsonSchema);
+  // LangChain hands the run config to the tool. Its signal stops the tool's polling when the run is cancelled.
+  return tool(async (input: LangChainInput, config): Promise<RendobarToolResult> => runUnchecked(d, input, config.signal === undefined ? {} : { signal: config.signal }), {
+    name: d.name,
+    description: d.description,
+    schema,
+  });
 }
 
-export function rendobarTools(options: ToolkitOptions = {}): RendobarTools {
-  const d = rendobarToolDefinitions(options);
+/** The four Rendobar tools, as `createAgent` takes them. Find one by its `name`, not by its place in the list. */
+export function rendobarTools(options: ToolkitOptions = {}): RendobarLangChainTool[] {
+  const d = buildTools(options);
   return [langchainTool(d.list_job_types), langchainTool(d.run_job), langchainTool(d.get_job), langchainTool(d.probe_media)];
 }
