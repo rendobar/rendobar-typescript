@@ -6,8 +6,10 @@
  *
  *   const editor = new Agent({ id: "editor", name: "Editor", instructions: "...", model, tools: rendobarTools() });
  */
-import { createTool } from "@mastra/core/tools";
-import { buildTools, inputSchemaOf, resultSchemaOf, runUnchecked, type ToolkitOptions } from "./core.js";
+import { createTool, type Tool, type ToolExecutionContext } from "@mastra/core/tools";
+import type { z } from "zod";
+import { buildTools, inputSchemaOf, resultSchemaOf, runUnchecked, type CoreTool, type RendobarToolName, type ToolkitOptions } from "./core.js";
+import type { ToolResult } from "./results.js";
 
 export type { ToolkitOptions } from "./core.js";
 
@@ -15,8 +17,17 @@ export type { ToolkitOptions } from "./core.js";
 const runOptions = (context: { abortSignal?: AbortSignal | undefined } | undefined) =>
   context?.abortSignal === undefined ? {} : { signal: context.abortSignal };
 
+type Built = ReturnType<typeof buildTools>;
+
+/** One Rendobar tool as Mastra types it: its own input and result, no suspend or resume, no request context. */
+export type RendobarMastraTool<I, R> = Tool<I, R, unknown, unknown, ToolExecutionContext<unknown, unknown, unknown>, RendobarToolName, unknown>;
+
 /** The four Rendobar tools, keyed by the names the model sees. */
-export function rendobarTools(options: ToolkitOptions = {}) {
+export type RendobarMastraTools = {
+  [Name in keyof Built]: Built[Name] extends CoreTool<infer I, infer R> ? RendobarMastraTool<z.input<I>, ToolResult<R>> : never;
+};
+
+export function rendobarTools(options: ToolkitOptions = {}): RendobarMastraTools {
   const d = buildTools(options);
   // Written out per tool so Mastra infers each tool's own input and result types.
   return {
