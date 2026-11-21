@@ -19,7 +19,44 @@ import { RendobarModule } from "@rendobar/nestjs";
 export class AppModule {}
 ```
 
-With no `apiKey`, the client reads `RENDOBAR_API_KEY`. If neither is set, the app fails at startup with an error that names both, instead of failing later on the first API call. To read options from `ConfigService`, use `RendobarModule.forRootAsync({ imports, inject, useFactory })`.
+With no `apiKey`, the client reads `RENDOBAR_API_KEY`. If neither is set, the app fails at startup with an error that names both, instead of failing later on the first API call.
+
+## Options
+
+`forRoot()` takes every option of `createClient` from `@rendobar/sdk`, plus `webhookSecret` for the guard:
+
+| Option | What it sets |
+|---|---|
+| `apiKey` | The API key. Defaults to `RENDOBAR_API_KEY` |
+| `baseUrl` | The API server. Defaults to `https://api.rendobar.com` |
+| `timeout` | Request timeout in milliseconds. Defaults to 30000 |
+| `maxRetries` | Retries on a 429 or 5xx. Defaults to 2 |
+| `orgId` | The organization to act in, for a key with access to several |
+| `app` | Your app's name, sent with each request so support can tell your apps apart |
+| `webhookSecret` | The signing secret `RendobarSignatureGuard` checks against |
+
+To read them from `ConfigService`, use `forRootAsync`:
+
+```ts
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { RendobarModule } from "@rendobar/nestjs";
+
+@Module({
+  imports: [
+    ConfigModule.forRoot(),
+    RendobarModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        apiKey: config.getOrThrow<string>("RENDOBAR_API_KEY"),
+        webhookSecret: config.getOrThrow<string>("RENDOBAR_WEBHOOK_SECRET"),
+      }),
+    }),
+  ],
+})
+export class AppModule {}
+```
 
 ## Use the client
 
@@ -54,7 +91,7 @@ async function bootstrap() {
 void bootstrap();
 ```
 
-`@RendobarEvent()` hands your handler the parsed body. Type it as `WebhookPayload` and switch on `event.event`, and `event.data` narrows to that event's fields.
+`@RendobarEvent()` hands your handler the envelope, parsed from the exact bytes the guard verified. Type it as `WebhookPayload` and switch on `event.event`, and `event.data` narrows to that event's fields.
 
 ```ts
 // webhooks.controller.ts
@@ -73,6 +110,6 @@ export class WebhooksController {
 }
 ```
 
-A bad or stale signature gets a 401. A missing `webhookSecret` or a missing raw body is a 500 that names the fix.
+The guard verifies a body of any content type. A bad or stale signature gets a 401. A missing `webhookSecret`, a missing raw body or `@RendobarEvent()` on a route without the guard is a 500 that names the fix.
 
 Supports NestJS 10 and 11. MIT licensed.
