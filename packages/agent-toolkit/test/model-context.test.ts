@@ -17,7 +17,7 @@ const PROBE = {
 };
 
 /** The mock's job, as a completed ffprobe job carrying PROBE. */
-function probeClient(type = "ffprobe") {
+function probeClient(type = "ffprobe", cost: unknown = { amount: 1000000, currency: "USD", formatted: "$0.0010" }) {
   return createClient({
     apiKey: "rb_test",
     baseUrl: MOCK,
@@ -25,7 +25,7 @@ function probeClient(type = "ffprobe") {
       const res = await fetch(url, init);
       if ((init?.method ?? "GET") !== "GET" || !String(url).includes("/jobs/job_")) return res;
       const body = await res.json();
-      body.data = { ...body.data, type, status: "complete", output: { data: PROBE, file: null, files: [], expiresAt: 1731000000000 } };
+      body.data = { ...body.data, type, status: "complete", cost, output: { data: PROBE, file: null, files: [], expiresAt: 1731000000000 } };
       return new Response(JSON.stringify(body), { status: res.status, headers: { "content-type": "application/json" } });
     },
   });
@@ -61,5 +61,15 @@ describe("ffprobe results", () => {
     const result = await rendobarToolDefinitions({ client: probeClient("ffmpeg") }).get_job.run({ id: "job_1" });
 
     expect(result).toHaveProperty("data", PROBE);
+  });
+
+  it("says when the cost has not settled yet, instead of reporting none", async () => {
+    const settled = await rendobarToolDefinitions({ client: probeClient("ffmpeg") }).get_job.run({ id: "job_1" });
+    const unsettled = await rendobarToolDefinitions({ client: probeClient("ffmpeg", null) }).get_job.run({ id: "job_1" });
+
+    expect(settled).toMatchObject({ cost: "$0.0010" });
+    expect(settled).not.toHaveProperty("hint");
+    expect(unsettled).not.toHaveProperty("cost");
+    expect(unsettled).toHaveProperty("hint", "The cost settles shortly after completion. Call get_job later to read it.");
   });
 });

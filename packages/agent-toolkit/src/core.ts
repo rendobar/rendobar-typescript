@@ -92,17 +92,21 @@ function modelData(type: string, data: unknown, raw: boolean): { data: unknown; 
 /** What an agent needs from a job, and nothing it would have to wade through. */
 function summarize(job: Job, raw: boolean): Record<string, unknown> {
   const out: Record<string, unknown> = { id: job.id, type: job.type, status: job.status };
+  const hints: string[] = [];
   if (job.status === "complete") {
     out.url = outputUrl(job) ?? null;
     out.files = job.output.files.map((f) => ({ url: f.url, type: f.type, path: f.path, size: f.size }));
     if (job.output.data !== null) {
       const { data, trimmed } = modelData(job.type, job.output.data, raw);
       out.data = data;
-      if (trimmed) out.hint = "This is ffprobe's summary. For its full raw output, call get_job with this id and raw: true.";
+      if (trimmed) hints.push("This is ffprobe's summary. For its full raw output, call get_job with this id and raw: true.");
     }
   }
   if (job.status === "failed") out.error = { code: job.error.code, message: job.error.message };
+  // Billing settles just after a job completes, so a result read at completion may have no cost yet.
   if (job.cost) out.cost = job.cost.formatted;
+  else if (job.status === "complete") hints.push("The cost settles shortly after completion. Call get_job later to read it.");
+  if (hints.length > 0) out.hint = hints.join(" ");
   return out;
 }
 
