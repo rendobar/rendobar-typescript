@@ -151,6 +151,7 @@ describe("RendobarModule without an API key", () => {
     vi.stubEnv("RENDOBAR_API_KEY", "");
     const compiling = Test.createTestingModule({ imports: [appModule(RendobarModule.forRoot({ baseUrl: MOCK, webhookSecret: SECRET }))] }).compile();
     await expect(compiling).rejects.toThrow(/apiKey .*RENDOBAR_API_KEY/);
+    await expect(compiling).rejects.toMatchObject({ code: "MISSING_API_KEY" });
   });
 
   it("refuses to start from forRootAsync too", async () => {

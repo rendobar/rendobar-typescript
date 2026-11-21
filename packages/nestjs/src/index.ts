@@ -29,7 +29,7 @@ import {
   type FactoryProvider,
   type ModuleMetadata,
 } from "@nestjs/common";
-import { createClient, type ClientConfig, type RendobarClient } from "@rendobar/sdk";
+import { ApiError, createClient, type ClientConfig, type RendobarClient } from "@rendobar/sdk";
 import { verifyWebhook } from "@rendobar/sdk/webhooks";
 import { VERSION } from "./version";
 
@@ -61,9 +61,14 @@ const clientProvider: Provider = {
   // The client header names this package, so the API can tell NestJS traffic apart.
   // The signing secret stays with the guard: the API client never needs it.
   useFactory: ({ webhookSecret: _secret, ...config }: RendobarModuleOptions) => {
-    // Fail at startup, where the cause is, instead of with a 401 on the first call.
+    // Fail at startup, where the cause is, instead of on the first call. Same code as
+    // the SDK's own local refusal, so both read as MISSING_API_KEY.
     if (!hasCredentials(config)) {
-      throw new Error("RendobarModule has no API key. Pass apiKey in the RendobarModule options or set the RENDOBAR_API_KEY environment variable.");
+      throw new ApiError(
+        "MISSING_API_KEY",
+        401,
+        "RendobarModule has no API key. Pass apiKey in the RendobarModule options or set the RENDOBAR_API_KEY environment variable.",
+      );
     }
     return createClient({ client: `nestjs/${VERSION}`, ...config });
   },
