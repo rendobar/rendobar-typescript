@@ -14,11 +14,7 @@ import { VERSION } from "./version.js";
 export type ToolkitOptions = {
   /** A configured client. Defaults to `createClient()`, which reads RENDOBAR_API_KEY. */
   client?: RendobarClient;
-  /**
-   * API base URL. Default https://api.rendobar.com. Used for the client the
-   * toolkit builds and for the job-type schema endpoint, so pass the same one
-   * your own `client` uses when you pass both.
-   */
+  /** API base URL for the client the toolkit builds. Ignored when you pass `client`. */
   baseUrl?: string;
 };
 
@@ -28,6 +24,10 @@ export type ToolDefinition<I extends z.ZodType> = {
   input: I;
   run: (input: z.infer<I>) => Promise<unknown>;
 };
+
+function isCreated(value: unknown): value is { id: string; status: string } {
+  return typeof value === "object" && value !== null && "id" in value && typeof value.id === "string" && !("error" in value);
+}
 
 /** Types a tool from its own input schema. */
 function define<I extends z.ZodType>(d: ToolDefinition<I>): ToolDefinition<I> {
@@ -65,10 +65,24 @@ async function guarded(fn: () => Promise<unknown>): Promise<unknown> {
   }
 }
 
+/**
+ * Waits for a job that already exists. Any failure from here on comes back with
+ * the job id and a pointer to get_job, never "retry": resubmitting would create
+ * and bill a second job, because each submit carries its own idempotency key.
+ */
+async function waitFor(rb: RendobarClient, id: string): Promise<unknown> {
+  try {
+    return summarize(await rb.jobs.wait(id, { throwOnFailure: false }));
+  } catch (e) {
+    const status = e instanceof WaitTimeoutError ? e.lastStatus : "unknown";
+    const message = (e instanceof Error ? e.message : String(e)).replace(/\.?$/, ".");
+    return { id, status, error: { code: e instanceof WaitTimeoutError ? "WAIT_TIMEOUT" : "WAIT_FAILED", message }, hint: "The job exists. Call get_job with this id. Do not submit it again." };
+  }
+}
+
 export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
   // A client the caller built keeps its own attribution. Ours names this package, not the SDK.
-  const baseUrl = options.baseUrl ?? "https://api.rendobar.com";
-  const rb = options.client ?? createClient({ client: `agent-toolkit/${VERSION}`, baseUrl });
+  const rb = options.client ?? createClient({ client: `agent-toolkit/${VERSION}`, ...(options.baseUrl === undefined ? {} : { baseUrl: options.baseUrl }) });
 
   const listJobTypes = define({
     name: "list_job_types",
@@ -78,11 +92,12 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
     run: ({ type }) =>
       guarded(async () => {
         if (type === undefined) return (await rb.jobs.types()).map((t) => ({ type: t.type, summary: t.summary, useCases: t.useCases }));
-        const res = await fetch(`${baseUrl}/jobs/types/${encodeURIComponent(type)}/schema`);
-        if (res.status === 404) return { error: { code: "NOT_FOUND", message: `Job type "${type}" is not live. Call list_job_types.` } };
-        if (!res.ok) return { error: { code: "REQUEST_FAILED", message: `The schema endpoint answered ${res.status}. The call can be retried.` } };
-        const body: unknown = await res.json();
-        return body;
+        try {
+          return await rb.jobs.typeSchema(type);
+        } catch (e) {
+          if (isApiError(e) && e.statusCode === 404) return { error: { code: "NOT_FOUND", message: `Job type "${type}" is not live. Call list_job_types.` } };
+          throw e;
+        }
       }),
   });
 
@@ -95,13 +110,15 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
       params: z.record(z.string(), z.unknown()).default({}).describe("Params for this job type, per its schema"),
       inputs: z.record(z.string(), z.unknown()).optional().describe("Named input files, as URLs"),
       wait: z.boolean().default(true).describe("Wait for the job to finish. False returns the created job at once"),
+      idempotencyKey: z.string().optional().describe("Optional. Reuse one key to make repeating this exact submit safe"),
     }),
-    run: ({ type, params, inputs, wait }) =>
-      guarded(async () => {
-        const body = inputs === undefined ? { type, params } : { type, params, inputs };
-        if (!wait) return await rb.jobs.create(body);
-        return summarize(await rb.jobs.run(body, { throwOnFailure: false }));
-      }),
+    run: async ({ type, params, inputs, wait, idempotencyKey }) => {
+      const body = { type, params, ...(inputs === undefined ? {} : { inputs }), ...(idempotencyKey === undefined ? {} : { idempotencyKey }) };
+      // Only the submit may be retried by the model. Once a job exists, failures say so.
+      const created = await guarded(() => rb.jobs.create(body));
+      if (!isCreated(created)) return created;
+      return wait ? waitFor(rb, created.id) : created;
+    },
   });
 
   const getJob = define({
@@ -115,8 +132,10 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
     name: "probe_media",
     description: "Inspect a media file by URL: duration, format, streams, codecs, resolution, frame rate. Runs as a short ffprobe job, billed like any other job.",
     input: z.object({ url: z.string().url().describe("Public or signed URL of the media file") }),
-    run: ({ url }) =>
-      guarded(async () => summarize(await rb.jobs.run({ type: "ffprobe", params: { command: url } }, { throwOnFailure: false }))),
+    run: async ({ url }) => {
+      const created = await guarded(() => rb.jobs.create({ type: "ffprobe", params: { command: url } }));
+      return isCreated(created) ? waitFor(rb, created.id) : created;
+    },
   });
 
   return { list_job_types: listJobTypes, run_job: runJob, get_job: getJob, probe_media: probeMedia };
