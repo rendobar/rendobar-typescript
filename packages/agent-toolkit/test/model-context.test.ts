@@ -67,7 +67,8 @@ describe("ffprobe results", () => {
     const settled = await rendobarToolDefinitions({ client: probeClient("ffmpeg") }).get_job.run({ id: "job_1" });
     const unsettled = await rendobarToolDefinitions({ client: probeClient("ffmpeg", null) }).get_job.run({ id: "job_1" });
 
-    expect(settled).toMatchObject({ cost: "$0.0010" });
+    // Integer nanodollars, as every Rendobar SDK reports cost, with the display string beside it.
+    expect(settled).toMatchObject({ cost: { amount: 1000000, currency: "USD", formatted: "$0.0010" } });
     expect(settled).not.toHaveProperty("hint");
     expect(unsettled).not.toHaveProperty("cost");
     expect(unsettled).toHaveProperty("hint", "The cost settles shortly after completion. Call get_job later to read it.");

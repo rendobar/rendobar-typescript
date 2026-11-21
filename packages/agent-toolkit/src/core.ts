@@ -109,7 +109,8 @@ function summarize(job: Job, raw: boolean): Record<string, unknown> {
   }
   if (job.status === "failed") out.error = { code: job.error.code, message: job.error.message };
   // Billing settles just after a job completes, so a result read at completion may have no cost yet.
-  if (job.cost) out.cost = job.cost.formatted;
+  // `amount` is integer nanodollars, as in every Rendobar SDK. `formatted` is for showing a person.
+  if (job.cost) out.cost = job.cost;
   else if (job.status === "complete") hints.push("The cost settles shortly after completion. Call get_job later to read it.");
   if (hints.length > 0) out.hint = hints.join(" ");
   return out;
