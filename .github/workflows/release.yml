@@ -1,6 +1,8 @@
 name: release
 # release-please opens one release PR per package. Nothing publishes until a
-# person merges it. Publishing uses npm trusted publishing: no stored token.
+# person merges it. Publishing uses npm trusted publishing (OIDC). npm can only
+# trust a package that already exists, so the very first release of each new
+# package needs an NPM_TOKEN secret; remove it once the trusted publisher is set.
 on:
   push:
     branches: [main]
@@ -17,6 +19,8 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: rp
         with:
+          # A token other than GITHUB_TOKEN, so the release PR triggers CI.
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
   publish:
@@ -34,7 +38,20 @@ jobs:
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
+      - uses: actions/checkout@v4
+        with:
+          repository: rendobar/openapi
+          path: .openapi
       - run: pnpm install --frozen-lockfile
+      - name: Test before publishing
+        run: |
+          python3 -I .openapi/conformance/mock_server.py .openapi/openapi.json 4100 requests.jsonl &
+          for i in $(seq 1 20); do curl -sf -X POST http://127.0.0.1:4100/__reset && break; sleep 0.5; done || exit 1
+          pnpm typecheck && pnpm test
+        env:
+          RENDOBAR_MOCK: http://127.0.0.1:4100
       - run: pnpm build
       - run: npm publish --provenance --access public
         working-directory: ${{ matrix.path }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}  # only for a package's first release
