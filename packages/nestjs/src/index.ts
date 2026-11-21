@@ -47,12 +47,23 @@ export type RendobarModuleAsyncOptions = Pick<ModuleMetadata, "imports"> & {
 /** Injects the configured Rendobar client. */
 export const InjectRendobar = (): ParameterDecorator & PropertyDecorator => Inject(RENDOBAR_CLIENT);
 
+/** Whether the SDK will have something to authenticate with: an option, or RENDOBAR_API_KEY. */
+function hasCredentials(config: ClientConfig): boolean {
+  return Boolean(config.apiKey || config.accessToken || config.credentials || process.env.RENDOBAR_API_KEY);
+}
+
 const clientProvider: Provider = {
   provide: RENDOBAR_CLIENT,
   inject: [RENDOBAR_OPTIONS],
   // The client header names this package, so the API can tell NestJS traffic apart.
   // The signing secret stays with the guard: the API client never needs it.
-  useFactory: ({ webhookSecret: _secret, ...config }: RendobarModuleOptions) => createClient({ client: `nestjs/${VERSION}`, ...config }),
+  useFactory: ({ webhookSecret: _secret, ...config }: RendobarModuleOptions) => {
+    // Fail at startup, where the cause is, instead of with a 401 on the first call.
+    if (!hasCredentials(config)) {
+      throw new Error("RendobarModule has no API key. Pass apiKey in the RendobarModule options or set the RENDOBAR_API_KEY environment variable.");
+    }
+    return createClient({ client: `nestjs/${VERSION}`, ...config });
+  },
 };
 
 @Module({})

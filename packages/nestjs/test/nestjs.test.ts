@@ -7,7 +7,7 @@ import "reflect-metadata";
 import { createHmac } from "node:crypto";
 import { Controller, Get, HttpCode, Injectable, Module, Post, UseGuards, type INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { InjectRendobar, RendobarEvent, RendobarModule, RendobarSignatureGuard, type RendobarClient, type WebhookPayload } from "../src/index";
 
 const MOCK = process.env.RENDOBAR_MOCK ?? "http://127.0.0.1:4100";
@@ -115,6 +115,34 @@ describe("RendobarModule.forRoot", () => {
     const { app, base } = await start(RendobarModule.forRoot({ apiKey: "rb_conformance", baseUrl: MOCK, webhookSecret: SECRET }), false);
     try {
       expect((await post(base, signed(EVENT))).status).toBe(500);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("RendobarModule without an API key", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("refuses to start, naming the option and the environment variable", async () => {
+    vi.stubEnv("RENDOBAR_API_KEY", "");
+    const compiling = Test.createTestingModule({ imports: [appModule(RendobarModule.forRoot({ baseUrl: MOCK, webhookSecret: SECRET }))] }).compile();
+    await expect(compiling).rejects.toThrow(/apiKey .*RENDOBAR_API_KEY/);
+  });
+
+  it("refuses to start from forRootAsync too", async () => {
+    vi.stubEnv("RENDOBAR_API_KEY", "");
+    const module = RendobarModule.forRootAsync({ useFactory: () => ({ baseUrl: MOCK }) });
+    await expect(Test.createTestingModule({ imports: [appModule(module)] }).compile()).rejects.toThrow(/RENDOBAR_API_KEY/);
+  });
+
+  it("starts when RENDOBAR_API_KEY is set", async () => {
+    vi.stubEnv("RENDOBAR_API_KEY", "rb_conformance");
+    const { app, base } = await start(RendobarModule.forRoot({ baseUrl: MOCK }));
+    try {
+      expect(await (await fetch(`${base}/job`)).json()).toEqual({ id: "job_x" });
     } finally {
       await app.close();
     }
