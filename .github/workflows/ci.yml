@@ -1,0 +1,44 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: rendobar/openapi
+          path: .openapi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start the conformance mock
+        run: |
+          python3 -I .openapi/conformance/mock_server.py .openapi/openapi.json 4100 requests.jsonl &
+          for i in $(seq 1 20); do curl -sf -X POST http://127.0.0.1:4100/__reset && break; sleep 0.5; done
+      - run: pnpm typecheck
+      - run: pnpm test
+        env:
+          RENDOBAR_MOCK: http://127.0.0.1:4100
+      - name: Conformance scenarios against the installed SDK
+        run: |
+          pnpm conformance | tee conformance.json
+          node -e "const r=JSON.parse(require('fs').readFileSync('conformance.json','utf8').slice(require('fs').readFileSync('conformance.json','utf8').indexOf('{')));const bad=Object.entries(r).filter(([,v])=>v!=='pass');if(bad.length){console.error(bad);process.exit(1)}console.log(Object.keys(r).length,'scenarios pass')"
+        env:
+          RENDOBAR_MOCK: http://127.0.0.1:4100
+      - run: pnpm build

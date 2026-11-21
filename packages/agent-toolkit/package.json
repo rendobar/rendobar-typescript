@@ -1,0 +1,61 @@
+{
+  "name": "@rendobar/agent-toolkit",
+  "version": "0.1.0",
+  "description": "Rendobar agent toolkit: media processing and AI generation tools for AI agent frameworks.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://rendobar.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rendobar/rendobar-typescript.git",
+    "directory": "packages/agent-toolkit"
+  },
+  "keywords": [
+    "rendobar",
+    "ai-sdk",
+    "agent",
+    "tools",
+    "ffmpeg",
+    "video"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./ai-sdk": {
+      "types": "./dist/ai-sdk.d.ts",
+      "default": "./dist/ai-sdk.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@rendobar/sdk": ">=5.18.0",
+    "ai": ">=5 <8",
+    "zod": ">=3.25 <5"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@rendobar/sdk": "^5.18.0",
+    "@types/node": "^26.6.6",
+    "ai": "^7.0.179",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.12",
+    "zod": "^4.6.7"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

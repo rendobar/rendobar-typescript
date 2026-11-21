@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "CommonJS", "moduleResolution": "Node",
+    "strict": true, "skipLibCheck": true, "declaration": true,
+    "experimentalDecorators": true, "emitDecoratorMetadata": true,
+    "outDir": "dist", "rootDir": ".", "types": ["node"], "esModuleInterop": true
+  },
+  "include": ["src", "test"]
+}
