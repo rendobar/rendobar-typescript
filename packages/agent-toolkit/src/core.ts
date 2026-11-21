@@ -103,7 +103,9 @@ async function submit(rb: RendobarClient, body: Parameters<RendobarClient["jobs"
     return await rb.jobs.create({ ...body, idempotencyKey });
   } catch (e) {
     if (isApiError(e) && e.statusCode < 500 && e.statusCode !== 429) {
-      return { error: { code: e.code, message: e.message, requestId: e.requestId ?? null } };
+      const refusal = { error: { code: e.code, message: e.message, requestId: e.requestId ?? null } };
+      // The API's message names its REST route. The model's way to the list is this toolkit's tool.
+      return e.code === "INVALID_JOB_TYPE" ? { ...refusal, hint: "Call list_job_types for the live job types." } : refusal;
     }
     const code = isApiError(e) ? e.code : "REQUEST_FAILED";
     const message = (e instanceof Error ? e.message : String(e)).replace(/\.?$/, ".");

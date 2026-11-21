@@ -82,6 +82,26 @@ describe("run_job", () => {
     expect(refused).toEqual({ error: { code: "VALIDATION_ERROR", message: "no", requestId: null } });
   });
 
+  it("points an unknown job type at list_job_types, the tool the model has", async () => {
+    const client = createClient({
+      apiKey: "rb_test",
+      baseUrl: MOCK,
+      maxRetries: 0,
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { code: "INVALID_JOB_TYPE", message: 'Unknown job type "bogus".' } }), {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+
+    const result = await rendobarToolDefinitions({ client }).run_job.run({ type: "bogus" });
+
+    expect(result).toEqual({
+      error: { code: "INVALID_JOB_TYPE", message: 'Unknown job type "bogus".', requestId: null },
+      hint: "Call list_job_types for the live job types.",
+    });
+  });
+
   it("waits by default and sends {} when params are omitted", async () => {
     const bodies: unknown[] = [];
     const client = createClient({
