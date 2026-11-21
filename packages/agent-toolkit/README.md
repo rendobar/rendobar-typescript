@@ -1,6 +1,6 @@
 # @rendobar/agent-toolkit
 
-Rendobar tools for AI agent frameworks. Give an agent the ability to process video, audio and images, burn captions, compose edits and generate images, with one import.
+Rendobar tools for AI agent frameworks: the Vercel AI SDK, Mastra and LangChain.js. Give an agent the ability to process video, audio and images, burn captions, compose edits and generate images, with one import.
 
 ```bash
 npm install @rendobar/agent-toolkit @rendobar/sdk ai zod
@@ -19,6 +19,26 @@ const { text } = await generateText({
   prompt: "Cut https://cdn.rendobar.com/assets/examples/sample.mp4 to its first 5 seconds and give me the link.",
 });
 ```
+
+## Mastra
+
+```ts
+import { Agent } from "@mastra/core/agent";
+import { rendobarTools } from "@rendobar/agent-toolkit/mastra";
+
+const editor = new Agent({ name: "editor", instructions: "You edit videos.", model, tools: rendobarTools() });
+```
+
+## LangChain.js and LangGraph.js
+
+```ts
+import { createAgent } from "langchain";
+import { rendobarTools } from "@rendobar/agent-toolkit/langchain";
+
+const agent = createAgent({ model, tools: rendobarTools() });
+```
+
+Install only the framework you use: `ai`, `@mastra/core` and `@langchain/core` are optional peer dependencies.
 
 ## The tools
 
