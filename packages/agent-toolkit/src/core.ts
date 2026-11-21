@@ -146,7 +146,9 @@ export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
       idempotencyKey: z
         .string()
         .optional()
-        .describe("Reuse the key a failed run_job returned to retry it without creating a second job. Omit on a first call"),
+        .describe(
+          "Reuse the key a failed run_job returned to retry it with the same type, params and inputs, without creating a second job. Omit on a first call",
+        ),
     }),
     run: async ({ type, params, inputs, wait, idempotencyKey }) => {
       const body = { type, params: params ?? {}, ...(inputs === undefined ? {} : { inputs }), ...(idempotencyKey === undefined ? {} : { idempotencyKey }) };

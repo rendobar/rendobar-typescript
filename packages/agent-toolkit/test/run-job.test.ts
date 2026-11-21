@@ -102,6 +102,20 @@ describe("run_job", () => {
     });
   });
 
+  it("reports a key reused with different params as a CONFLICT, with no key to retry", async () => {
+    const message = 'Idempotency key "k" was already used for job job_1 with a different request.';
+    const client = createClient({
+      apiKey: "rb_test",
+      baseUrl: MOCK,
+      maxRetries: 0,
+      fetch: async () => new Response(JSON.stringify({ error: { code: "CONFLICT", message } }), { status: 409, headers: { "content-type": "application/json" } }),
+    });
+
+    const result = await rendobarToolDefinitions({ client }).run_job.run({ type: "ffprobe", params: { command: "https://x/b.mp4" }, idempotencyKey: "k" });
+
+    expect(result).toEqual({ error: { code: "CONFLICT", message, requestId: null } });
+  });
+
   it("waits by default and sends {} when params are omitted", async () => {
     const bodies: unknown[] = [];
     const client = createClient({
