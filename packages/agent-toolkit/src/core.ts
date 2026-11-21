@@ -13,7 +13,7 @@
  * optional in one converted for input (the AI SDK, Mastra), so the model would
  * see a different contract per framework.
  */
-import { createClient, isApiError, outputUrl, WaitTimeoutError, type ApiError, type ApiProblem, type RendobarClient } from "@rendobar/sdk";
+import { createClient, generateIdempotencyKey, isApiError, outputUrl, WaitTimeoutError, type ApiError, type ApiProblem, type RendobarClient } from "@rendobar/sdk";
 import { z } from "zod";
 import { VERSION } from "./version.js";
 
@@ -154,11 +154,6 @@ async function waitFor(rb: RendobarClient, id: string): Promise<unknown> {
   }
 }
 
-/** `sdk_` plus 32 hex characters, the same shape the SDK uses for its own keys. */
-function newIdempotencyKey(): string {
-  return `sdk_${crypto.randomUUID().replaceAll("-", "")}`;
-}
-
 /**
  * Submits a job. A failure after which the job may exist (no answer, a 429 or a
  * 5xx) comes back with the key it used inside `error`, as every Rendobar SDK
@@ -167,7 +162,9 @@ function newIdempotencyKey(): string {
  * nothing and carries no key: the call itself must change.
  */
 async function submit(rb: RendobarClient, body: Parameters<RendobarClient["jobs"]["create"]>[0]): Promise<unknown> {
-  const idempotencyKey = body.idempotencyKey ?? newIdempotencyKey();
+  // Chosen here, not left to the SDK, so the key is known even when the failure
+  // is not an ApiError (an abort or a timeout) and carries none.
+  const idempotencyKey = body.idempotencyKey ?? generateIdempotencyKey();
   try {
     return await rb.jobs.create({ ...body, idempotencyKey });
   } catch (e) {
