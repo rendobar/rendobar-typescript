@@ -11,7 +11,7 @@ Both read `RENDOBAR_API_KEY` from the environment when you pass no key. Get one 
 
 ## How these packages are tested
 
-Every Rendobar SDK runs the same conformance scenarios from [rendobar/openapi](https://github.com/rendobar/openapi): retries, typed errors, request ids, keyed submits that a retry cannot duplicate, and deprecation notices. CI runs them here against a mock built from the published OpenAPI spec, on Node 20, 22 and 24.
+Every Rendobar SDK runs the same conformance scenarios from [rendobar/openapi](https://github.com/rendobar/openapi): retries, typed errors, request ids, keyed submits that a retry cannot duplicate, and deprecation notices. CI runs them here against a mock built from the published OpenAPI spec, on Node 22 and 24.
 
 ```bash
 pnpm install

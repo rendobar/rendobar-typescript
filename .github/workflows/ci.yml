@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["20", "22", "24"]
+        node: ["22", "24"]  # Node 20 is past end of life, and ai@7 and @mastra/core need 22
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -39,9 +39,8 @@ jobs:
         env:
           RENDOBAR_MOCK: http://127.0.0.1:4100
       - name: Conformance scenarios against the installed SDK
-        run: |
-          pnpm conformance | tee conformance.json
-          node -e "const r=JSON.parse(require('fs').readFileSync('conformance.json','utf8').slice(require('fs').readFileSync('conformance.json','utf8').indexOf('{')));const bad=Object.entries(r).filter(([,v])=>v!=='pass');if(bad.length){console.error(bad);process.exit(1)}console.log(Object.keys(r).length,'scenarios pass')"
+        # run.mts exits non-zero unless all 18 scenarios pass.
+        run: pnpm --silent conformance
         env:
           RENDOBAR_MOCK: http://127.0.0.1:4100
       - run: pnpm build

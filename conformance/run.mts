@@ -6,7 +6,7 @@
  */
 const base = process.env.RENDOBAR_MOCK ?? "http://127.0.0.1:4100";
 const sdk = await import(process.env.SDK ?? "@rendobar/sdk");
-const { createClient, isApiError } = sdk;
+const { createClient, isApiError, JobFailedError } = sdk;
 
 const results: Record<string, string> = {};
 const reset = (q = "") => fetch(`${base}/__reset${q}`, { method: "POST" });
@@ -68,6 +68,22 @@ await scenario("C15", async () => {
   return sent[0]?.headers.get("Authorization") === "Bearer rb_from_env" || "env key not sent";
 });
 
+await reset();
+await scenario("C16", async () => {
+  const job = await rb.jobs.run({ type: "ffprobe", params: { command: "https://x/a.mp4" } }, { interval: 50 });
+  return (job.status === "complete" && typeof job.output.file?.url === "string") || `status ${job.status}`;
+});
+await scenario("C17", async () => {
+  try { await rb.jobs.wait("job_failed", { throwOnFailure: true, interval: 50 }); return "no error"; } catch (e) { return (e instanceof JobFailedError && e.status === "failed" && e.jobId === "job_failed") || String(e); }
+});
+await scenario("C18", async () => {
+  sent.length = 0;
+  try { await rb.jobs.get("job_409"); return "no error"; } catch (e) {
+    const hits = sent.filter((s) => s.url.endsWith("/jobs/job_409")).length;
+    return (isApiError(e) && e.statusCode === 409 && hits === 1) || `status ${isApiError(e) ? e.statusCode : String(e)}, ${hits} requests`;
+  }
+});
+
 console.log(JSON.stringify(results, null, 2));
 const failed = Object.entries(results).filter(([, v]) => v !== "pass");
-process.exit(failed.length === 0 && Object.keys(results).length === 15 ? 0 : 1);
+process.exit(failed.length === 0 && Object.keys(results).length === 18 ? 0 : 1);
