@@ -46,7 +46,7 @@ describe("rendobarTools() in a generateText agent loop", () => {
 
     const result = await generateText({
       model,
-      tools: rendobarTools({ client, baseUrl: MOCK }),
+      tools: rendobarTools({ client }),
       stopWhen: stepCountIs(5),
       prompt: "Probe this video.",
     });
@@ -67,7 +67,7 @@ describe("rendobarTools() in a generateText agent loop", () => {
     const model = new MockLanguageModelV4({ doGenerate: [call("1", "probe_media", { url: "not a url" }), done] });
     const client = createClient({ apiKey: "rb_conformance", baseUrl: MOCK });
 
-    const result = await generateText({ model, tools: rendobarTools({ client, baseUrl: MOCK }), stopWhen: stepCountIs(3), prompt: "x" });
+    const result = await generateText({ model, tools: rendobarTools({ client }), stopWhen: stepCountIs(3), prompt: "x" });
 
     const errors = result.steps.flatMap((s) => s.content.filter((c) => c.type === "tool-error"));
     expect(errors).toHaveLength(1);

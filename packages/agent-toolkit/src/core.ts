@@ -18,10 +18,11 @@ import { z } from "zod";
 import { VERSION } from "./version.js";
 
 export type ToolkitOptions = {
-  /** A configured client. Defaults to `createClient()`, which reads RENDOBAR_API_KEY. */
+  /**
+   * A configured client, for any other key, server, timeout or retry setting.
+   * Defaults to a client that reads RENDOBAR_API_KEY.
+   */
   client?: RendobarClient;
-  /** API base URL for the client the toolkit builds. Ignored when you pass `client`. */
-  baseUrl?: string;
 };
 
 export type ToolDefinition<I extends z.ZodType> = {
@@ -140,7 +141,7 @@ async function submit(rb: RendobarClient, body: Parameters<RendobarClient["jobs"
 
 export function rendobarToolDefinitions(options: ToolkitOptions = {}) {
   // A client the caller built keeps its own attribution. Ours names this package, not the SDK.
-  const rb = options.client ?? createClient({ client: `agent-toolkit/${VERSION}`, ...(options.baseUrl === undefined ? {} : { baseUrl: options.baseUrl }) });
+  const rb = options.client ?? createClient({ client: `agent-toolkit/${VERSION}` });
 
   const listJobTypes = define({
     name: "list_job_types",
