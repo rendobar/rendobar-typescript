@@ -49,7 +49,7 @@
   "peerDependencies": {
     "@rendobar/sdk": ">=5.18.0",
     "ai": ">=5 <8",
-    "zod": ">=3.25 <5",
+    "zod": "^4.0.0",
     "@mastra/core": ">=1.82 <2",
     "@langchain/core": ">=1.3 <2"
   },
