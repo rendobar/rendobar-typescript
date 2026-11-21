@@ -5,7 +5,7 @@
 import { createClient } from "@rendobar/sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rendobarToolDefinitions } from "../src/core.js";
-import { answering, recording } from "./helpers.js";
+import { answering, MOCK, recording, secondSdkCopy } from "./helpers.js";
 
 describe("tool errors", () => {
   it("returns a network failure as an error object instead of throwing", async () => {
@@ -27,6 +27,24 @@ describe("tool errors", () => {
     const result = await rendobarToolDefinitions({ client: answering(404, { code: "NOT_FOUND", message: "no" }) }).list_job_types.run({ type: "bogus" });
 
     expect(result).toEqual({ error: { code: "NOT_FOUND", message: 'Job type "bogus" is not live. Call list_job_types.', requestId: null } });
+  });
+});
+
+describe("a client from another copy of the SDK", () => {
+  it("still has its refusals and wait timeouts recognised, through the SDK's brand checks", async () => {
+    const { sdk, remove } = await secondSdkCopy();
+    try {
+      const client = sdk.createClient({ apiKey: "rb_test", baseUrl: MOCK, maxRetries: 0 });
+      client.jobs.wait = async (id) => {
+        throw new sdk.WaitTimeoutError(id, "running", 1000);
+      };
+      const tools = rendobarToolDefinitions({ client });
+
+      expect(await tools.get_job.run({ id: "job_404" })).toMatchObject({ error: { code: "NOT_FOUND", requestId: expect.stringMatching(/^req_/) } });
+      expect(await tools.run_job.run({ type: "ffprobe", params: { command: "https://x/a.mp4" } })).toMatchObject({ error: { code: "WAIT_TIMEOUT" }, status: "running" });
+    } finally {
+      remove();
+    }
   });
 });
 

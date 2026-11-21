@@ -15,7 +15,7 @@
  * optional in one converted for input (the AI SDK, Mastra), so the model would
  * see a different contract per framework.
  */
-import { createClient, generateIdempotencyKey, isApiError, outputUrl, type ApiError, type ApiProblem, type CreateJobParams, type RendobarClient } from "@rendobar/sdk";
+import { createClient, generateIdempotencyKey, isApiError, isWaitTimeoutError, outputUrl, type ApiError, type ApiProblem, type CreateJobParams, type RendobarClient } from "@rendobar/sdk";
 import { z } from "zod";
 import {
   isJsonValue,
@@ -212,8 +212,12 @@ function readFailure(e: unknown, options: RunOptions): { error: ToolError } {
   return failure("REQUEST_FAILED", `${messageOf(e)} The call can be retried.`);
 }
 
-const isWaitTimeout = (e: unknown): e is Error & { lastStatus: string } =>
-  e instanceof Error && e.name === "WaitTimeoutError" && typeof Reflect.get(e, "lastStatus") === "string";
+/** The failure after a job was created, by its cause. The SDK's guards recognise errors from any copy of it. */
+function waitError(e: unknown, options: RunOptions): ToolError {
+  if (isWaitTimeoutError(e)) return failure("WAIT_TIMEOUT", messageOf(e)).error;
+  if (options.signal?.aborted === true) return failure("ABORTED", "The wait was cancelled.").error;
+  return failure("WAIT_FAILED", messageOf(e), {}, isApiError(e) ? (e.requestId ?? null) : null).error;
+}
 
 /**
  * Reads a job that already exists. Any failure from here on comes back with
@@ -225,9 +229,12 @@ async function readCreated(rb: RendobarClient, id: string, wait: boolean, option
     const job = wait ? await rb.jobs.wait(id, { throwOnFailure: false, ...withSignal(options) }) : await rb.jobs.get(id, withSignal(options));
     return summarize(job, false);
   } catch (e) {
-    const status = isWaitTimeout(e) ? e.lastStatus : "unknown";
-    const { error } = isWaitTimeout(e) ? failure("WAIT_TIMEOUT", messageOf(e)) : options.signal?.aborted === true ? failure("ABORTED", "The wait was cancelled.") : failure("WAIT_FAILED", messageOf(e), {}, isApiError(e) ? (e.requestId ?? null) : null);
-    const failed: ToolFailure = { error, id, status, hint: "The job exists. Call get_job with this id. Do not submit it again." };
+    const failed: ToolFailure = {
+      error: waitError(e, options),
+      id,
+      status: isWaitTimeoutError(e) ? e.lastStatus : "unknown",
+      hint: "The job exists. Call get_job with this id. Do not submit it again.",
+    };
     return failed;
   }
 }

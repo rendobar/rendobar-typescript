@@ -2,6 +2,9 @@
  * Clients the tests share. Every file talks to the one conformance mock
  * (rendobar/openapi conformance/mock_server.py) and resets it first.
  */
+import { cpSync, realpathSync, rmSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createClient, type ClientConfig } from "@rendobar/sdk";
 
 export const MOCK = process.env["RENDOBAR_MOCK"] ?? "http://127.0.0.1:4100";
@@ -51,4 +54,18 @@ export function rewritingJobs(rewrite: (job: Record<string, unknown>) => Record<
       return new Response(JSON.stringify({ data: rewrite(body.data) }), { status: res.status, headers: { "content-type": "application/json" } });
     },
   });
+}
+
+/**
+ * A second, separate copy of the installed SDK, as in an app with two installs
+ * of it. Its classes are not the toolkit's, so only the SDK's brand checks can
+ * recognise its errors. Copied next to the installed one so its own
+ * dependencies resolve; `remove` deletes it.
+ */
+export async function secondSdkCopy() {
+  const installed = realpathSync(resolve(process.cwd(), "node_modules/@rendobar/sdk"));
+  const copy = join(dirname(installed), "sdk-second-copy");
+  cpSync(installed, copy, { recursive: true });
+  const sdk: typeof import("@rendobar/sdk") = await import(pathToFileURL(join(copy, "dist/index.mjs")).href);
+  return { sdk, remove: () => rmSync(copy, { recursive: true, force: true }) };
 }
