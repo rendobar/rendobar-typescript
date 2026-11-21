@@ -13,7 +13,7 @@
  * optional in one converted for input (the AI SDK, Mastra), so the model would
  * see a different contract per framework.
  */
-import { createClient, isApiError, outputUrl, WaitTimeoutError, type RendobarClient } from "@rendobar/sdk";
+import { createClient, isApiError, outputUrl, WaitTimeoutError, type ApiError, type ApiProblem, type RendobarClient } from "@rendobar/sdk";
 import { z } from "zod";
 import { VERSION } from "./version.js";
 
@@ -46,8 +46,13 @@ function isCreated(value: unknown): value is { id: string; status: string } {
 export async function runUnchecked<I extends z.ZodType>(d: ToolDefinition<I>, input: unknown): Promise<unknown> {
   const parsed = d.input.safeParse(input);
   if (parsed.success) return d.run(parsed.data);
-  const problems = parsed.error.issues.map((i) => `${i.path.length > 0 ? i.path.map(String).join(".") : "input"}: ${i.message}`);
-  return { error: { code: "VALIDATION_ERROR", message: `Invalid input for ${d.name}. ${problems.join(". ")}.` } };
+  // The same `problems` shape an API refusal carries, so the model reads one form either way.
+  const problems: ApiProblem[] = parsed.error.issues.map((i) => ({
+    path: i.path.map((p) => (typeof p === "number" ? p : String(p))),
+    message: i.message,
+  }));
+  const named = problems.map((p) => `${p.path.length > 0 ? p.path.join(".") : "input"}: ${p.message}`);
+  return { error: { code: "VALIDATION_ERROR", message: `Invalid input for ${d.name}. ${named.join(". ")}.`, problems } };
 }
 
 /** Types a tool from its own input schema, and checks that input on every run. */
@@ -110,6 +115,11 @@ function summarize(job: Job, raw: boolean): Record<string, unknown> {
   return out;
 }
 
+/** An API refusal as the model sees it. `problems` names each field the API refused, when it listed them. */
+function refusal(e: ApiError): { error: Record<string, unknown> } {
+  return { error: { code: e.code, message: e.message, requestId: e.requestId ?? null, ...(e.problems === undefined ? {} : { problems: e.problems }) } };
+}
+
 /**
  * Errors go back to the model as data it can act on, never as a thrown stack.
  * Every kind, not only API refusals: a wait that runs out or a dropped
@@ -119,7 +129,7 @@ async function guarded(fn: () => Promise<unknown>): Promise<unknown> {
   try {
     return await fn();
   } catch (e) {
-    if (isApiError(e)) return { error: { code: e.code, message: e.message, requestId: e.requestId ?? null } };
+    if (isApiError(e)) return refusal(e);
     if (e instanceof WaitTimeoutError) {
       return { id: e.jobId, status: e.lastStatus, error: { code: "WAIT_TIMEOUT", message: `${e.message} Call get_job with this id later.` } };
     }
@@ -161,9 +171,8 @@ async function submit(rb: RendobarClient, body: Parameters<RendobarClient["jobs"
     return await rb.jobs.create({ ...body, idempotencyKey });
   } catch (e) {
     if (isApiError(e) && e.statusCode < 500 && e.statusCode !== 429) {
-      const refusal = { error: { code: e.code, message: e.message, requestId: e.requestId ?? null } };
       // The API's message names its REST route. The model's way to the list is this toolkit's tool.
-      return e.code === "INVALID_JOB_TYPE" ? { ...refusal, hint: "Call list_job_types for the live job types." } : refusal;
+      return e.code === "INVALID_JOB_TYPE" ? { ...refusal(e), hint: "Call list_job_types for the live job types." } : refusal(e);
     }
     const code = isApiError(e) ? e.code : "REQUEST_FAILED";
     const message = (e instanceof Error ? e.message : String(e)).replace(/\.?$/, ".");

@@ -36,7 +36,9 @@ describe("tool errors", () => {
 
     const result = await rendobarToolDefinitions({ client }).probe_media.run({ url: "not a url" });
 
-    expect(result).toEqual({ error: { code: "VALIDATION_ERROR", message: "Invalid input for probe_media. url: Invalid URL." } });
+    expect(result).toEqual({
+      error: { code: "VALIDATION_ERROR", message: "Invalid input for probe_media. url: Invalid URL.", problems: [{ path: ["url"], message: "Invalid URL" }] },
+    });
     expect(sent).toEqual([]);
   });
 });

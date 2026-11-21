@@ -82,6 +82,24 @@ describe("run_job", () => {
     expect(refused).toEqual({ error: { code: "VALIDATION_ERROR", message: "no", requestId: null } });
   });
 
+  it("hands the model each problem the API listed on a refused submit", async () => {
+    const problems = [{ path: ["params", "command"], message: "Required" }];
+    const client = createClient({
+      apiKey: "rb_test",
+      baseUrl: MOCK,
+      maxRetries: 0,
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { code: "VALIDATION_ERROR", message: "Invalid params.", details: problems } }), {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+
+    const result = await rendobarToolDefinitions({ client }).run_job.run({ type: "ffprobe" });
+
+    expect(result).toEqual({ error: { code: "VALIDATION_ERROR", message: "Invalid params.", requestId: null, problems } });
+  });
+
   it("points an unknown job type at list_job_types, the tool the model has", async () => {
     const client = createClient({
       apiKey: "rb_test",
