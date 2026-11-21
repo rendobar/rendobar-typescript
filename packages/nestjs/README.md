@@ -1,6 +1,6 @@
 # @rendobar/nestjs
 
-Add Rendobar to a NestJS app: an injectable client for every media job, and a guard that verifies webhook signatures before your controller runs.
+Add Rendobar to a NestJS app: an injectable client for every media job, webhook verification before your handler runs, and a filter that keeps Rendobar's refusals out of your users' responses.
 
 ```bash
 npm install @rendobar/nestjs @rendobar/sdk
@@ -13,29 +13,35 @@ npm install @rendobar/nestjs @rendobar/sdk
 import { Module } from "@nestjs/common";
 import { RendobarModule } from "@rendobar/nestjs";
 
+const secret = process.env["RENDOBAR_WEBHOOK_SECRET"];
+if (!secret) throw new Error("Set RENDOBAR_WEBHOOK_SECRET");
+
 @Module({
-  imports: [RendobarModule.forRoot({ webhookSecret: process.env.RENDOBAR_WEBHOOK_SECRET })],
+  imports: [RendobarModule.forRoot({ webhooks: { secret } })],
 })
 export class AppModule {}
 ```
 
-With no `apiKey`, the client reads `RENDOBAR_API_KEY`. If neither is set, the app fails at startup with an error that names both, instead of failing later on the first API call.
+With no `client.apiKey`, the client reads `RENDOBAR_API_KEY`. If neither is set, the app fails at startup with `MISSING_API_KEY` and an error that names both, instead of failing later on the first API call. An empty `apiKey` fails the same way.
 
 ## Options
 
-`forRoot()` takes every option of `createClient` from `@rendobar/sdk`, plus `webhookSecret` for the guard:
-
 | Option | What it sets |
 |---|---|
-| `apiKey` | The API key. Defaults to `RENDOBAR_API_KEY` |
-| `baseUrl` | The API server. Defaults to `https://api.rendobar.com` |
-| `timeout` | Request timeout in milliseconds. Defaults to 30000 |
-| `maxRetries` | Retries on a 429 or 5xx. Defaults to 2 |
-| `orgId` | The organization to act in, for a key with access to several |
-| `app` | Your app's name, sent with each request so support can tell your apps apart |
-| `webhookSecret` | The signing secret `RendobarSignatureGuard` checks against |
+| `client.apiKey` | The API key. Defaults to `RENDOBAR_API_KEY` |
+| `client.baseUrl` | The API server. Defaults to `https://api.rendobar.com` |
+| `client.timeout` | Request timeout in milliseconds. Defaults to 30000 |
+| `client.maxRetries` | Retries on a 429 or 5xx. Defaults to 2 |
+| `client.orgId` | The organization to act in, for a key with access to several |
+| `client.app` | Your app's name, sent with each request so support can tell your apps apart |
+| `webhooks.secret` | The signing secret webhooks are verified against |
+| `webhooks.toleranceSec` | How old a signature may be, in seconds. Defaults to 300 |
+| `webhooks.maxBodyBytes` | The largest body the guard reads itself, for a content type no body parser takes. Defaults to 102400 |
+| `apiErrorFilter` | Set `false` to handle Rendobar errors yourself. See below |
 
-To read them from `ConfigService`, use `forRootAsync`:
+`client` takes every `createClient` option of `@rendobar/sdk` except `credentials` and `client`. Every option also accepts `undefined`, so a value read from config can be passed as it is.
+
+To read options from `ConfigService`, use `forRootAsync`. `useFactory` gets the providers in `inject`, typed, in that order:
 
 ```ts
 import { Module } from "@nestjs/common";
@@ -49,8 +55,8 @@ import { RendobarModule } from "@rendobar/nestjs";
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        apiKey: config.getOrThrow<string>("RENDOBAR_API_KEY"),
-        webhookSecret: config.getOrThrow<string>("RENDOBAR_WEBHOOK_SECRET"),
+        client: { apiKey: config.get<string>("RENDOBAR_API_KEY") },
+        webhooks: { secret: config.getOrThrow<string>("RENDOBAR_WEBHOOK_SECRET") },
       }),
     }),
   ],
@@ -60,14 +66,16 @@ export class AppModule {}
 
 ## Use the client
 
+Inject `RendobarClient` by type:
+
 ```ts
 // videos.service.ts
 import { Injectable } from "@nestjs/common";
-import { InjectRendobar, type RendobarClient } from "@rendobar/nestjs";
+import { RendobarClient } from "@rendobar/nestjs";
 
 @Injectable()
 export class VideosService {
-  constructor(@InjectRendobar() private readonly rb: RendobarClient) {}
+  constructor(private readonly rb: RendobarClient) {}
 
   probe(url: string) {
     return this.rb.jobs.run({ type: "ffprobe", params: { command: url } });
@@ -75,41 +83,50 @@ export class VideosService {
 }
 ```
 
+## Rendobar errors in your responses
+
+Nest answers an error that has `statusCode` and `message` with that status and message. Left alone, an uncaught Rendobar `ApiError` would reach your users as Rendobar's own refusal: a revoked key as your app's 401, low credits as a 402. The module registers a filter that answers any `ApiError` with a 502 and a generic body, and logs its code and `requestId` (what Rendobar support asks for).
+
+To handle Rendobar errors yourself, catch them in your service, or put your own filter on a controller or handler with `@UseFilters`, which runs before the module's. To turn the module's filter off, pass `apiErrorFilter: false` to `forRoot` or `forRootAsync`.
+
 ## Verify webhooks
 
-The guard checks the signature against the exact bytes Rendobar sent, so create the app with `rawBody` on:
+The signature is checked against the exact bytes Rendobar sent, so create the app with `rawBody` on:
 
 ```ts
 // main.ts
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+  // Rendobar sends JSON. Raise the JSON parser's 100 KB default if your jobs return large output data.
+  app.useBodyParser("json", { limit: "1mb" });
   await app.listen(3000);
 }
 void bootstrap();
 ```
 
-`@RendobarEvent()` hands your handler the envelope, parsed from the exact bytes the guard verified. Type it as `WebhookPayload` and switch on `event.event`, and `event.data` narrows to that event's fields.
+Put `@RendobarWebhook()` on the handler. It verifies the signature, parses the event from the bytes it verified, and passes it as the first parameter. That parameter must accept a `RendobarWebhookEvent`: annotating it with another type does not compile. `isKnownWebhookEvent(event)` narrows to the events this SDK version knows, and then `event.data` narrows on `event.event`. A newer event arrives typed as an unknown event instead of failing.
 
 ```ts
 // webhooks.controller.ts
-import { Controller, HttpCode, Post, UseGuards } from "@nestjs/common";
-import { RendobarEvent, RendobarSignatureGuard, type WebhookPayload } from "@rendobar/nestjs";
+import { Controller, HttpCode, Post } from "@nestjs/common";
+import { isKnownWebhookEvent, RendobarWebhook, type RendobarWebhookEvent } from "@rendobar/nestjs";
 
 @Controller("webhooks")
 export class WebhooksController {
   @Post("rendobar")
   @HttpCode(204)
-  @UseGuards(RendobarSignatureGuard)
-  handle(@RendobarEvent() event: WebhookPayload) {
+  @RendobarWebhook()
+  handle(event: RendobarWebhookEvent) {
     // Signed by Rendobar in the last five minutes.
-    if (event.event === "job.completed") console.log(event.data.jobId, event.data.output);
+    if (isKnownWebhookEvent(event) && event.event === "job.completed") console.log(event.data.jobId, event.data.output);
   }
 }
 ```
 
-The guard verifies a body of any content type. A bad or stale signature gets a 401. A missing `webhookSecret`, a missing raw body or `@RendobarEvent()` on a route without the guard is a 500 that names the fix.
+A bad or stale signature gets a 401, and a signed body that is not a webhook envelope a 400. `@RendobarWebhook()` with no `webhooks` options stops the app at startup. Without `rawBody` it answers 500 and names the fix. A body over the limit gets a 413.
 
-Supports NestJS 10 and 11. MIT licensed.
+Webhook verification needs the Express adapter, Nest's default. Supports NestJS 10 and 11. MIT licensed.
