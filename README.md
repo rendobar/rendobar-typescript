@@ -4,7 +4,7 @@ Framework packages for the [Rendobar API](https://rendobar.com), built on [`@ren
 
 | Package | What it does |
 |---|---|
-| [`@rendobar/nestjs`](packages/nestjs) | An injectable Rendobar client and a webhook signature guard for NestJS apps. |
+| [`@rendobar/nestjs`](packages/nestjs) | An injectable Rendobar client, webhook verification and a filter that keeps Rendobar errors out of responses, for NestJS apps. |
 | [`@rendobar/agent-toolkit`](packages/agent-toolkit) | Media processing and AI generation tools for AI agents on the Vercel AI SDK, Mastra and LangChain.js. |
 
 Both read `RENDOBAR_API_KEY` from the environment when you pass no key. Get one at [app.rendobar.com](https://app.rendobar.com).
