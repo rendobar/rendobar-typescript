@@ -4,7 +4,7 @@
   "description": "Rendobar agent toolkit: the official agent tools for Rendobar's media processing and AI generation API.",
   "license": "MIT",
   "type": "module",
-  "homepage": "https://rendobar.com/docs/sdk",
+  "homepage": "https://rendobar.com/integrations/vercel-ai-sdk/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rendobar/rendobar-typescript.git",
