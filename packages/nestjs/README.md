@@ -185,7 +185,6 @@ Webhook verification needs the Express adapter, Nest's default.
 - TypeScript: [`@rendobar/sdk`](https://www.npmjs.com/package/@rendobar/sdk) on npm, the client these packages build on.
 - Python: [`rendobar`](https://pypi.org/project/rendobar/) on PyPI.
 - Go: [`github.com/rendobar/rendobar-go`](https://pkg.go.dev/github.com/rendobar/rendobar-go) on pkg.go.dev.
-- NestJS: [`@rendobar/nestjs`](https://www.npmjs.com/package/@rendobar/nestjs), an injectable client and webhook verification for NestJS apps.
 - Agent toolkit: [`@rendobar/agent-toolkit`](https://www.npmjs.com/package/@rendobar/agent-toolkit), Rendobar tools for the Vercel AI SDK, Mastra and LangChain.js.
 
 ## Versioning and support
