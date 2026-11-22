@@ -42,7 +42,7 @@ jobs:
         env:
           RENDOBAR_MOCK: http://127.0.0.1:4100
       - name: Conformance scenarios against the installed SDK
-        # run.mts exits non-zero unless all 39 pass, C20, C22 and C36 (not for TypeScript) as n/a.
+        # run.mts exits non-zero unless all 40 pass, C20, C22 and C36 (not for TypeScript) as n/a.
         run: pnpm --silent conformance
         env:
           RENDOBAR_MOCK: http://127.0.0.1:4100

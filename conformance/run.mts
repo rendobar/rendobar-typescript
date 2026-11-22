@@ -289,9 +289,25 @@ await scenario("C39", async () => {
   }
   return wrong.length === 0 || `wrong: ${wrong.join("; ")}`;
 });
+await reset();
+await scenario("C40", async () => {
+  // A status this SDK does not know, which the API marks terminal: the wait must end on it at once.
+  const r = await timed(() => rb.jobs.wait("job_future_done", { timeout: 10_000 }));
+  if (r.error !== undefined) return `wait raised ${String(r.error)}`;
+  const status = field(r.value, "status");
+  if (status !== "archived" || r.ms >= 2000) return `wait returned status ${String(status)} after ${r.ms} ms`;
+  await reset("?archive_created=1");
+  try {
+    const job = await rb.jobs.run({ type: "ffprobe", params: { command: "https://x/a.mp4" } }, { interval: 50 });
+    return `run returned a ${String(field(job, "status"))} job as a success`;
+  } catch (e) {
+    const ok = e instanceof JobFailedError && e.status === "archived" && field(e.job, "status") === "archived";
+    return ok || `run raised ${String(e)}, status ${String(field(e, "status"))}`;
+  }
+});
 
 console.log(JSON.stringify(results, null, 2));
 // SCENARIOS.md marks C20, C22 and C36 "not for typescript": those, and only those, may be n/a.
 const NOT_FOR_TYPESCRIPT = new Set(["C20", "C22", "C36"]);
 const failed = Object.entries(results).filter(([id, v]) => !(v === "pass" || (v === "n/a" && NOT_FOR_TYPESCRIPT.has(id))));
-process.exit(failed.length === 0 && Object.keys(results).length === 39 ? 0 : 1);
+process.exit(failed.length === 0 && Object.keys(results).length === 40 ? 0 : 1);
