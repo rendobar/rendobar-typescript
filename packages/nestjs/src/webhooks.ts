@@ -108,6 +108,15 @@ const VerifiedEvent = createParamDecorator((_: unknown, context: ExecutionContex
 });
 
 /**
+ * The handler type when its first parameter accepts every verified delivery,
+ * and never otherwise. Checked with a conditional type, not by assigning the
+ * handler to a function type, so the check holds whether or not the project
+ * sets strictFunctionTypes (without it, parameters are compared both ways and
+ * a narrower annotation would pass).
+ */
+type AcceptsEvent<M> = M extends (event: infer Event, ...rest: never[]) => unknown ? ([RendobarWebhookEvent] extends [Event] ? M : never) : never;
+
+/**
  * Marks a handler as the Rendobar webhook receiver. It verifies the signature
  * (401 on a bad or stale one) and passes the event as the first parameter,
  * which must accept a `RendobarWebhookEvent`: annotating it with a narrower or
@@ -115,7 +124,7 @@ const VerifiedEvent = createParamDecorator((_: unknown, context: ExecutionContex
  * `isKnownWebhookEvent(event)` and `event.data` narrows.
  */
 export function RendobarWebhook() {
-  return <M extends (event: RendobarWebhookEvent, ...rest: never[]) => unknown>(target: object, key: string | symbol, descriptor: TypedPropertyDescriptor<M>): void => {
+  return <M extends (...args: never[]) => unknown>(target: object, key: string | symbol, descriptor: TypedPropertyDescriptor<M & AcceptsEvent<M>>): void => {
     UseGuards(RendobarSignatureGuard)(target, key, descriptor);
     VerifiedEvent()(target, key, 0);
   };

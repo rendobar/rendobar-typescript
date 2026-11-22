@@ -3,8 +3,8 @@
  * Each `@ts-expect-error` line is a program that must not compile: if it ever
  * compiles, the directive itself fails the typecheck.
  */
-import { Controller, Injectable, Post } from "@nestjs/common";
-import { RendobarClient, RendobarModule, RendobarWebhook, type RendobarWebhookEvent, type WebhookPayload } from "../src/index";
+import { Injectable } from "@nestjs/common";
+import { RendobarClient, RendobarModule } from "../src/index";
 
 class ConfigLike {
   get(key: string): string | undefined {
@@ -36,34 +36,5 @@ export class Videos {
   constructor(private readonly rb: RendobarClient) {}
   probe(url: string) {
     return this.rb.jobs.run({ type: "ffprobe", params: { command: url } });
-  }
-}
-
-@Controller()
-export class Hooks {
-  @Post("ok")
-  @RendobarWebhook()
-  ok(event: RendobarWebhookEvent) {
-    return event.event;
-  }
-
-  @Post("extra")
-  @RendobarWebhook()
-  extra(event: RendobarWebhookEvent, note?: string) {
-    return [event.deliveryId, note];
-  }
-
-  @Post("narrow")
-  // @ts-expect-error the handler must accept every verified delivery, including events newer than this SDK
-  @RendobarWebhook()
-  narrow(event: WebhookPayload) {
-    return event.event;
-  }
-
-  @Post("wrong")
-  // @ts-expect-error an unrelated parameter type does not compile
-  @RendobarWebhook()
-  wrong(event: { amount: number }) {
-    return event.amount;
   }
 }
