@@ -9,14 +9,16 @@
       "component": "agent-toolkit",
       "extra-files": [
         "src/version.ts"
-      ]
+      ],
+      "initial-version": "0.1.0"
     },
     "packages/nestjs": {
       "package-name": "@rendobar/nestjs",
       "component": "nestjs",
       "extra-files": [
         "src/version.ts"
-      ]
+      ],
+      "initial-version": "0.1.0"
     }
   }
 }
