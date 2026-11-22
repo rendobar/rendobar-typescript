@@ -1,8 +1,9 @@
 name: release
 # release-please opens one release PR per package. Nothing publishes until a
-# person merges it. Publishing uses npm trusted publishing (OIDC). npm can only
-# trust a package that already exists, so the very first release of each new
-# package needs an NPM_TOKEN secret; remove it once the trusted publisher is set.
+# person merges it. Publishing uses npm trusted publishing (OIDC): each package's
+# trusted publisher on npmjs.com names this repo, release.yml and the npm
+# environment. No npm token is stored. A new package's first version has to be
+# published by hand, because npm can only trust a package that already exists.
 on:
   push:
     branches: [main]
@@ -69,7 +70,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          registry-url: https://registry.npmjs.org
+          # No registry-url: it writes an _authToken placeholder to .npmrc, which
+          # overrides the OIDC exchange and makes the publish fail.
       - uses: actions/checkout@v4
         with:
           repository: rendobar/openapi
@@ -83,7 +85,7 @@ jobs:
         env:
           RENDOBAR_MOCK: http://127.0.0.1:4100
       - run: pnpm build
+      - name: npm 11.5 or later, which trusted publishing needs
+        run: npm install -g npm@latest && npm --version
       - run: npm publish --provenance --access public
         working-directory: ${{ matrix.path }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}  # only for a package's first release
