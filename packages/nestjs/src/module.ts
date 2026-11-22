@@ -23,7 +23,11 @@ export type RendobarModuleAsyncOptions<Tokens extends readonly FactoryToken[]> =
 function providers(options: Provider, setup: RendobarModuleSetup): Provider[] {
   return [
     options,
-    { provide: RendobarClient, inject: [RENDOBAR_OPTIONS], useFactory: (o: RendobarModuleOptions) => buildClient(o.client ?? {}) },
+    {
+      provide: RendobarClient,
+      inject: [RENDOBAR_OPTIONS],
+      useFactory: (o: RendobarModuleOptions) => buildClient(o.client ?? {}, o.client === undefined && o.webhooks !== undefined),
+    },
     { provide: RENDOBAR_WEBHOOKS, inject: [RENDOBAR_OPTIONS], useFactory: (o: RendobarModuleOptions) => o.webhooks ?? null },
     ...(setup.apiErrorFilter === false ? [] : [{ provide: APP_FILTER, useClass: RendobarApiErrorFilter }]),
   ];

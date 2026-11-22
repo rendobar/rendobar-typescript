@@ -93,7 +93,6 @@ function postKeepAlive(agent: Agent, base: string, headers: Record<string, strin
   });
 }
 
-
 describe("RendobarModule.forRootAsync", () => {
   let app: INestApplication;
   let base = "";
@@ -257,6 +256,23 @@ describe("RendobarModule without an API key", () => {
   it("refuses an empty apiKey rather than falling through to the variable, as the SDK would not", async () => {
     vi.stubEnv("RENDOBAR_API_KEY", "rb_from_env");
     await expect(start(RendobarModule.forRoot({ client: { apiKey: "", baseUrl: MOCK } }), { controllers: [JobsController] })).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a blank apiKey", async () => {
+    vi.stubEnv("RENDOBAR_API_KEY", "rb_from_env");
+    await expect(start(RendobarModule.forRoot({ client: { apiKey: "   ", baseUrl: MOCK } }), { controllers: [JobsController] })).rejects.toMatchObject({ code: "MISSING_API_KEY" });
+  });
+
+  it("starts a webhook-only app with no key, and refuses the client's first call instead", async () => {
+    vi.stubEnv("RENDOBAR_API_KEY", "");
+    const { app, base } = await start(RendobarModule.forRoot({ webhooks: { secret: SECRET } }));
+    try {
+      expect((await post(base, signed(TEST_EVENT))).status).toBe(200);
+      // The SDK refuses locally with MISSING_API_KEY, and the filter keeps it out of the response.
+      expect((await fetch(`${base}/job`)).status).toBe(502);
+    } finally {
+      await app.close();
+    }
   });
 
   it("refuses to start from forRootAsync too", async () => {
