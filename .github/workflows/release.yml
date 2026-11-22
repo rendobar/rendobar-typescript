@@ -23,8 +23,28 @@ jobs:
           token: ${{ secrets.RELEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-  publish:
+  live-examples:
+    # The example projects against staging, from the packages as they would publish.
     needs: release-please
+    if: needs.release-please.outputs.releases != '[]' && needs.release-please.outputs.releases != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: rendobar/openapi
+          path: .openapi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pnpm install --frozen-lockfile
+      - run: node examples/run.mjs --mode live
+        env:
+          RENDOBAR_API_URL: ${{ secrets.RENDOBAR_STAGING_API_URL }}
+          RENDOBAR_API_KEY: ${{ secrets.RENDOBAR_STAGING_API_KEY }}
+  publish:
+    needs: [release-please, live-examples]
     if: needs.release-please.outputs.releases != '[]' && needs.release-please.outputs.releases != ''
     runs-on: ubuntu-latest
     environment: npm
