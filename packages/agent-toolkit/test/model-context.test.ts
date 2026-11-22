@@ -70,6 +70,15 @@ describe("a newer API", () => {
 
     expect(result).toEqual({ job: { id: "job_future", type: expect.any(String), cost: expect.anything(), status: "unknown", reportedStatus: "paused" } });
   });
+
+  it("ends run_job's wait on an unknown status the API marks terminal, and returns that job", async () => {
+    await reset("?archive_created=1");
+
+    const result = await rendobarToolDefinitions({ client: createClient({ apiKey: "rb_test", baseUrl: MOCK }) }).run_job.run({ type: "ffprobe", params: { command: "https://x/a.mp4" } });
+
+    expect(result).toMatchObject({ job: { status: "unknown", reportedStatus: "archived" } });
+    expect(result).not.toHaveProperty("error");
+  });
 });
 
 describe("list_job_types", () => {
