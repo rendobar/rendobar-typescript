@@ -17,6 +17,7 @@
 
 <p align="center">
   <a href="https://rendobar.com/docs/sdk">Docs</a> &nbsp;·&nbsp;
+  <a href="https://rendobar.com/integrations/vercel-ai-sdk/">Guide</a> &nbsp;·&nbsp;
   <a href="https://api.rendobar.com/reference">API reference</a> &nbsp;·&nbsp;
   <a href="https://www.npmjs.com/package/@rendobar/agent-toolkit">npm</a> &nbsp;·&nbsp;
   <a href="https://app.rendobar.com">Get an API key</a> &nbsp;·&nbsp;
@@ -180,7 +181,6 @@ Once a job exists, a wait that fails returns the job id and a hint to call `get_
 - Python: [`rendobar`](https://pypi.org/project/rendobar/) on PyPI.
 - Go: [`github.com/rendobar/rendobar-go`](https://pkg.go.dev/github.com/rendobar/rendobar-go) on pkg.go.dev.
 - NestJS: [`@rendobar/nestjs`](https://www.npmjs.com/package/@rendobar/nestjs), an injectable client and webhook verification for NestJS apps.
-- Agent toolkit: [`@rendobar/agent-toolkit`](https://www.npmjs.com/package/@rendobar/agent-toolkit), Rendobar tools for the Vercel AI SDK, Mastra and LangChain.js.
 
 ## Versioning and support
 
