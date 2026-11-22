@@ -1,6 +1,6 @@
 {
   "name": "@rendobar/agent-toolkit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Rendobar agent toolkit: the official agent tools for Rendobar's media processing and AI generation API.",
   "license": "MIT",
   "type": "module",

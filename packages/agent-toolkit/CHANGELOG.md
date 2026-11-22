@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/rendobar/rendobar-typescript/compare/agent-toolkit-v0.1.0...agent-toolkit-v0.1.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **agent-toolkit:** link the toolkit's own guide from npm and the README ([a50a0fb](https://github.com/rendobar/rendobar-typescript/commit/a50a0fb344ebe29996aeebb0cf1b8e9865153246))
+
 ## 0.1.0 (2026-11-22)
 
 
