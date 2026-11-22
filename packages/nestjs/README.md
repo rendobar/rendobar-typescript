@@ -74,12 +74,13 @@ Inject `RendobarClient` by type:
 // videos.service.ts
 import { Injectable } from "@nestjs/common";
 import { RendobarClient } from "@rendobar/nestjs";
+import type { TypedJob } from "@rendobar/sdk";
 
 @Injectable()
 export class VideosService {
   constructor(private readonly rb: RendobarClient) {}
 
-  probe(url: string) {
+  probe(url: string): Promise<TypedJob<"ffprobe">> {
     return this.rb.jobs.run({ type: "ffprobe", params: { command: url } });
   }
 }

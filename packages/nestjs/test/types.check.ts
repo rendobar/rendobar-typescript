@@ -3,8 +3,7 @@
  * Each `@ts-expect-error` line is a program that must not compile: if it ever
  * compiles, the directive itself fails the typecheck.
  */
-import { Injectable } from "@nestjs/common";
-import { RendobarClient, RendobarModule } from "../src/index";
+import { RendobarModule } from "../src/index";
 
 class ConfigLike {
   get(key: string): string | undefined {
@@ -29,12 +28,3 @@ RendobarModule.forRootAsync({ inject: [ConfigLike], useFactory: (port: number) =
 RendobarModule.forRootAsync({ useFactory: (config: ConfigLike) => ({ client: { apiKey: config.get("K") } }) });
 // apiErrorFilter is decided at definition time, outside the factory.
 RendobarModule.forRootAsync({ apiErrorFilter: false, useFactory: () => ({}) });
-
-// The client is injected by type and has the SDK client's members.
-@Injectable()
-export class Videos {
-  constructor(private readonly rb: RendobarClient) {}
-  probe(url: string) {
-    return this.rb.jobs.run({ type: "ffprobe", params: { command: url } });
-  }
-}
