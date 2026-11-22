@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/rendobar/rendobar-typescript/compare/nestjs-v0.1.0...nestjs-v0.1.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **nestjs:** drop the module from its own Other SDKs list ([9397012](https://github.com/rendobar/rendobar-typescript/commit/9397012e9b255a4f42f2916d18de8a8743719401))
+
 ## 0.1.0 (2026-11-22)
 
 

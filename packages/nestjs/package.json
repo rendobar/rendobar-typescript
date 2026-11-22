@@ -1,6 +1,6 @@
 {
   "name": "@rendobar/nestjs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Rendobar NestJS module: the official NestJS module for Rendobar's media processing and AI generation API.",
   "license": "MIT",
   "type": "commonjs",
