@@ -1,0 +1,25 @@
+{
+  "name": "rendobar-example-agent-toolkit-ai-sdk",
+  "private": true,
+  "description": "A video-editing agent on the Vercel AI SDK with @rendobar/agent-toolkit, driven by a scripted model.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/src/main.js",
+    "test": "tsc && node --test --test-reporter=spec \"dist/test/**/*.test.js\""
+  },
+  "dependencies": {
+    "@langchain/core": "1.5.0",
+    "@rendobar/agent-toolkit": "^0.1.0",
+    "@rendobar/sdk": "^5.18.0",
+    "ai": "7.0.179",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

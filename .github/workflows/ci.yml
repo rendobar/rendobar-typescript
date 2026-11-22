@@ -1,0 +1,72 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]  # Node 20 is past end of life, and ai@7 and @mastra/core need 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: rendobar/openapi
+          path: .openapi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - name: Public-surface deny-list
+        if: matrix.node == '24'
+        run: python3 -I .openapi/scripts/deny_list.py
+      - run: pnpm install --frozen-lockfile
+      - name: Start the conformance mock
+        run: |
+          python3 -I .openapi/conformance/mock_server.py .openapi/openapi.json 4100 requests.jsonl &
+          for i in $(seq 1 20); do curl -sf -X POST http://127.0.0.1:4100/__reset && break; sleep 0.5; done
+          curl -sf -X POST http://127.0.0.1:4100/__reset > /dev/null  # fail if the mock never came up
+      - run: pnpm typecheck
+      - name: README examples compile
+        run: pnpm --silent readmes
+      - run: pnpm test
+        env:
+          RENDOBAR_MOCK: http://127.0.0.1:4100
+      - name: Conformance scenarios against the installed SDK
+        # run.mts exits non-zero unless all 40 pass, C20, C22 and C36 (not for TypeScript) as n/a.
+        run: pnpm --silent conformance
+        env:
+          RENDOBAR_MOCK: http://127.0.0.1:4100
+      - run: pnpm build
+  examples:
+    # The example projects, installed from packed tarballs, against the conformance mock.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: rendobar/openapi
+          path: .openapi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start the conformance mock
+        run: |
+          python3 -I .openapi/conformance/mock_server.py .openapi/openapi.json 4100 requests.jsonl &
+          for i in $(seq 1 20); do curl -sf -X POST http://127.0.0.1:4100/__reset && break; sleep 0.5; done
+          curl -sf -X POST http://127.0.0.1:4100/__reset > /dev/null  # fail if the mock never came up
+      - run: node examples/run.mjs --mode mock
+        env:
+          RENDOBAR_API_URL: http://127.0.0.1:4100

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "bump-minor-pre-major": true,
+  "separate-pull-requests": true,
+  "packages": {
+    "packages/agent-toolkit": {
+      "package-name": "@rendobar/agent-toolkit",
+      "component": "agent-toolkit",
+      "extra-files": [
+        "src/version.ts"
+      ]
+    },
+    "packages/nestjs": {
+      "package-name": "@rendobar/nestjs",
+      "component": "nestjs",
+      "extra-files": [
+        "src/version.ts"
+      ]
+    }
+  }
+}

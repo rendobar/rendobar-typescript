@@ -1,0 +1,77 @@
+name: release
+# release-please opens one release PR per package. Nothing publishes until a
+# person merges it. Publishing uses npm trusted publishing (OIDC). npm can only
+# trust a package that already exists, so the very first release of each new
+# package needs an NPM_TOKEN secret; remove it once the trusted publisher is set.
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      releases: ${{ steps.rp.outputs.paths_released }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          # A token other than GITHUB_TOKEN, so the release PR triggers CI.
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+  live-examples:
+    # The example projects against staging, from the packages as they would publish.
+    needs: release-please
+    if: needs.release-please.outputs.releases != '[]' && needs.release-please.outputs.releases != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: rendobar/openapi
+          path: .openapi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pnpm install --frozen-lockfile
+      - run: node examples/run.mjs --mode live
+        env:
+          RENDOBAR_API_URL: ${{ secrets.RENDOBAR_STAGING_API_URL }}
+          RENDOBAR_API_KEY: ${{ secrets.RENDOBAR_STAGING_API_KEY }}
+  publish:
+    needs: [release-please, live-examples]
+    if: needs.release-please.outputs.releases != '[]' && needs.release-please.outputs.releases != ''
+    runs-on: ubuntu-latest
+    environment: npm
+    strategy:
+      matrix:
+        path: ${{ fromJSON(needs.release-please.outputs.releases) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+      - uses: actions/checkout@v4
+        with:
+          repository: rendobar/openapi
+          path: .openapi
+      - run: pnpm install --frozen-lockfile
+      - name: Test before publishing
+        run: |
+          python3 -I .openapi/conformance/mock_server.py .openapi/openapi.json 4100 requests.jsonl &
+          for i in $(seq 1 20); do curl -sf -X POST http://127.0.0.1:4100/__reset && break; sleep 0.5; done || exit 1
+          pnpm typecheck && pnpm readmes && pnpm test
+        env:
+          RENDOBAR_MOCK: http://127.0.0.1:4100
+      - run: pnpm build
+      - run: npm publish --provenance --access public
+        working-directory: ${{ matrix.path }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}  # only for a package's first release
