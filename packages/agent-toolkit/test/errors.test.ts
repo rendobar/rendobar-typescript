@@ -5,7 +5,7 @@
 import { createClient } from "@rendobar/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { rendobarToolDefinitions } from "../src/core.js";
-import { answering, MOCK, recording, reset, secondSdkCopy } from "./helpers.js";
+import { answering, MOCK, recording, refusingSubmits, reset, secondSdkCopy } from "./helpers.js";
 
 beforeEach(() => reset());
 
@@ -86,16 +86,7 @@ describe("input checks", () => {
   });
 
   it("sends a valid URL as the whole ffprobe command, unchanged", async () => {
-    const bodies: unknown[] = [];
-    const client = createClient({
-      apiKey: "rb_test",
-      baseUrl: "http://api.test",
-      maxRetries: 0,
-      fetch: async (_url, init) => {
-        bodies.push(JSON.parse(String(init?.body)));
-        return new Response(JSON.stringify({ error: { code: "VALIDATION_ERROR", message: "stop here" } }), { status: 400 });
-      },
-    });
+    const { client, bodies } = refusingSubmits();
 
     await rendobarToolDefinitions({ client }).probe_media.run({ url: "https://cdn.example.com/a.mp4?sig=x-y&t=1" });
 

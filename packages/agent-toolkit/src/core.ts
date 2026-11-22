@@ -271,24 +271,55 @@ async function submit(rb: RendobarClient, body: CreateJobParams, options: RunOpt
 }
 
 /**
- * The one media URL check, for probe_media's url and run_job's inputs: http or
- * https only, so no file:, javascript: or data: URL reaches a job. For
- * probe_media it is also what makes the URL reach the ffprobe command as
- * exactly one argument: the API splits the command on whitespace and quotes,
- * and treats a token starting with `-` as a flag, so a URL carrying any of
- * those could add flags to a billed job.
- *
- * The characters are checked on the raw value, first: the URL check parses
- * with WHATWG rules, which silently drop a tab or newline, so checking after
+ * Characters no reference may hold, checked on the raw value before any URL
+ * parsing: the WHATWG parser silently drops a tab or newline, so checking after
  * it would accept "https://x/a.mp4<tab>-f" as a different URL than was sent.
  */
-const mediaUrl = z
+const safeChars = z.refine<string>((value) => !/[\s"'\\\u0000-\u001f\u007f]/.test(value), {
+  message: "Cannot contain whitespace, quotes, backslashes or control characters",
+  abort: true,
+});
+
+/**
+ * probe_media's url: http or https only, as ffprobe takes a URL. It is also
+ * what makes the URL reach the ffprobe command as exactly one argument: the API
+ * splits the command on whitespace and quotes, and treats a token starting with
+ * `-` as a flag, so a URL carrying any of those could add flags to a billed job.
+ */
+const mediaUrl = z.string().check(safeChars, z.url({ protocol: /^https?$/ })).describe("Public or signed http(s) URL of the media file");
+
+// The API's own forms: an asset id is asset_ then letters, digits, _ or -, and
+// a storage id 2 to 40 of a-z, 0-9 and -.
+const ASSET_REF = /^asset:\/\/asset_[A-Za-z0-9_-]+$/;
+const STORAGE_REF = /^storage:\/\/[a-z0-9-]{2,40}\/(.+)$/;
+
+/** True for exactly the input forms the API takes; file:, javascript:, data: and the rest are refused. */
+function isInputRef(value: string): boolean {
+  if (/^https?:\/\//i.test(value)) return mediaUrl.safeParse(value).success;
+  if (ASSET_REF.test(value)) return true;
+  const path = STORAGE_REF.exec(value)?.[1];
+  // ? and # would read as a query. A segment of "." or "..", written plain or
+  // percent-encoded (the API decodes the path), could climb out of the key named.
+  return path !== undefined && !/[?#]/.test(path) && path.split("/").every((segment) => !["", ".", ".."].includes(decodedSegment(segment)));
+}
+
+function decodedSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+/**
+ * One of run_job's named inputs: a public or signed http(s) URL, an uploaded
+ * asset (`asset://asset_...`), or a file in a connected bucket
+ * (`storage://<id>/<path>`).
+ */
+const inputRef = z
   .string()
-  .check(
-    z.refine((url: string) => !/[\s"'\\]/.test(url), { message: "A media URL cannot contain whitespace, quotes or backslashes", abort: true }),
-    z.url({ protocol: /^https?$/ }),
-  )
-  .describe("Public or signed http(s) URL of the media file");
+  .check(safeChars, z.refine(isInputRef, "Must be an http(s) URL, asset://<asset id> or storage://<storage id>/<path>"))
+  .describe("An http(s) URL, asset://<asset id> or storage://<storage id>/<path>");
 
 /** The four tools with their adapter-only step, for the adapters in this package (not exported from it). */
 export function buildTools(options: ToolkitOptions) {
@@ -331,7 +362,7 @@ export function buildTools(options: ToolkitOptions) {
   const runJobInput = z.object({
     type: z.string().min(1).describe("Job type, from list_job_types"),
     params: z.record(z.string(), z.unknown()).optional().describe("Params for this job type, per its schema. Omitted means {}"),
-    inputs: z.record(z.string(), mediaUrl).optional().describe("Named input files, each a public or signed http(s) URL"),
+    inputs: z.record(z.string(), inputRef).optional().describe("Named input files: public or signed http(s) URLs, asset:// uploads or storage:// files"),
     wait: z.boolean().optional().describe("Wait for the job to finish (the default). False returns the job as soon as it is created"),
     idempotencyKey: z
       .string()

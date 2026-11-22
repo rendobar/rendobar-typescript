@@ -91,7 +91,7 @@ Without `client`, the toolkit builds a client that reads `RENDOBAR_API_KEY`. If 
 
 `list_job_types`, `get_job` and `probe_media` do what the tools of the same name on Rendobar's MCP server do. `run_job` is the MCP server's `submit_job` followed by a wait for the result, so an agent gets the output in one call. Pass `wait: false` to get the created job back at once. The job list is read live, so a new job type reaches your agent with no upgrade.
 
-`probe_media` takes an `http` or `https` URL with no whitespace, quotes or backslashes, so the URL reaches ffprobe as exactly one argument. `run_job`'s `inputs` follow the same rule. It, and `get_job` on an ffprobe job, return ffprobe's summary and any warnings, which is what an agent needs to plan an edit. Call `get_job` with `raw: true` for every raw ffprobe section.
+`probe_media` takes an `http` or `https` URL with no whitespace, quotes or backslashes, so the URL reaches ffprobe as exactly one argument. `run_job`'s `inputs` take the same kind of URL, or an uploaded asset (`asset://asset_...`) or a file in a connected bucket (`storage://<storage id>/<path>`). Any other form, such as `file:`, `javascript:` or `data:`, is refused before a request. It, and `get_job` on an ffprobe job, return ffprobe's summary and any warnings, which is what an agent needs to plan an edit. Call `get_job` with `raw: true` for every raw ffprobe section.
 
 A params schema that would crowd the model's context (compose's is about 150 KB) comes back shortened, with `trimmed` and a `hint` saying so. Call `list_job_types` with the type and `full: true` for the whole schema.
 

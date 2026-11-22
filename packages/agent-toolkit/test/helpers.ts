@@ -44,6 +44,21 @@ export function recording(apiKey: string | null = "rb_test") {
   return { client, sent };
 }
 
+/** A client that records each submit's body and refuses it, to see exactly what a tool sends. */
+export function refusingSubmits() {
+  const bodies: unknown[] = [];
+  const client = createClient({
+    apiKey: "rb_test",
+    baseUrl: "http://api.test",
+    maxRetries: 0,
+    fetch: async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ error: { code: "VALIDATION_ERROR", message: "stop here" } }), { status: 400 });
+    },
+  });
+  return { client, bodies };
+}
+
 /** A client on the mock whose job reads (GET /jobs/<id>) are rewritten, to serve a job the mock cannot. */
 export function rewritingJobs(rewrite: (job: Record<string, unknown>) => Record<string, unknown>) {
   return mockClient({

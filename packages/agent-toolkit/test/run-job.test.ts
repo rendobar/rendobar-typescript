@@ -6,7 +6,7 @@
 import { createClient, WaitTimeoutError } from "@rendobar/sdk";
 import { beforeEach, describe, expect, it } from "vitest";
 import { rendobarToolDefinitions } from "../src/core.js";
-import { abortingOnFirstPoll, answering, createdCount, MOCK, mockClient, recording, requests, reset } from "./helpers.js";
+import { abortingOnFirstPoll, answering, createdCount, MOCK, mockClient, recording, refusingSubmits, requests, reset } from "./helpers.js";
 
 beforeEach(() => reset());
 
@@ -105,19 +105,58 @@ describe("run_job", () => {
     expect(refused).toEqual({ error: { code: "VALIDATION_ERROR", message: "no", requestId: null } });
   });
 
-  it("refuses an empty idempotency key and an input that is not an http(s) URL, sending nothing", async () => {
+  it("refuses an empty idempotency key, an empty type and any input that is not an API input form, sending nothing", async () => {
     const { client, sent } = recording();
     const runJob = rendobarToolDefinitions({ client }).run_job;
-
-    const attempts = [
-      { type: "ffmpeg", idempotencyKey: "" },
-      { type: "ffmpeg", inputs: { source: "file:///etc/passwd" } },
-      { type: "ffmpeg", inputs: { source: "javascript:1" } },
-      { type: "ffmpeg", inputs: { source: "https://x/a.mp4 -f" } },
-      { type: "" },
+    const refusedInputs = [
+      "file:///etc/passwd",
+      "javascript:1",
+      "data:video/mp4;base64,AAAA",
+      "ftp://x/a.mp4",
+      "https://x/a.mp4 -f",
+      "https://x/a\tb.mp4",
+      "asset://abc123",
+      "asset://asset_../x",
+      "storage://media-1",
+      "storage://media-1/",
+      "storage://Media/clip.mp4",
+      "storage://m/clip.mp4",
+      "storage://media-1/../secret.mp4",
+      "storage://media-1/a/%2e%2e/b.mp4",
+      "storage://media-1/a//b.mp4",
+      "storage://media-1/a b.mp4",
+      "storage://media-1/a\u0001b.mp4",
+      "storage://media-1/a.mp4?x=1",
+      "storage://media-1/a'b.mp4",
     ];
+
+    const attempts = [{ type: "ffmpeg", idempotencyKey: "" }, { type: "" }, ...refusedInputs.map((source) => ({ type: "ffmpeg", inputs: { source } }))];
     for (const input of attempts) {
       expect(await runJob.run(input), JSON.stringify(input)).toMatchObject({ error: { code: "VALIDATION_ERROR", requestId: null } });
+    }
+    expect(sent).toEqual([]);
+  });
+
+  it("sends http(s) URLs, uploaded assets and connected-bucket files as inputs, unchanged", async () => {
+    const { client, bodies } = refusingSubmits();
+    const inputs = {
+      a: "https://cdn.example.com/a.mp4?sig=x-y",
+      b: "http://example.com/b.wav",
+      c: "asset://asset_Ab3_x-9",
+      d: "storage://media-1/folder/clip.mp4",
+      e: "storage://media-1/50%25.mp4",
+    };
+
+    expect(await rendobarToolDefinitions({ client }).run_job.run({ type: "ffmpeg", inputs })).toMatchObject({ error: { message: "stop here" } });
+
+    expect(bodies).toMatchObject([{ type: "ffmpeg", inputs }]);
+  });
+
+  it("keeps probe_media to http(s) URLs, which is what ffprobe takes", async () => {
+    const { client, sent } = recording();
+
+    for (const url of ["asset://asset_abc", "storage://media-1/clip.mp4"]) {
+      expect(await rendobarToolDefinitions({ client }).probe_media.run({ url }), url).toMatchObject({ error: { code: "VALIDATION_ERROR" } });
     }
     expect(sent).toEqual([]);
   });
