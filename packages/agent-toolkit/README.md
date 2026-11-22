@@ -91,7 +91,7 @@ Without `client`, the toolkit builds a client that reads `RENDOBAR_API_KEY`. If 
 
 `list_job_types`, `get_job` and `probe_media` do what the tools of the same name on Rendobar's MCP server do. `run_job` is the MCP server's `submit_job` followed by a wait for the result, so an agent gets the output in one call. Pass `wait: false` to get the created job back at once. The job list is read live, so a new job type reaches your agent with no upgrade.
 
-`probe_media` takes an `http` or `https` URL with no whitespace, quotes or backslashes, so the URL reaches ffprobe as exactly one argument. It, and `get_job` on an ffprobe job, return ffprobe's summary and any warnings, which is what an agent needs to plan an edit. Call `get_job` with `raw: true` for every raw ffprobe section.
+`probe_media` takes an `http` or `https` URL with no whitespace, quotes or backslashes, so the URL reaches ffprobe as exactly one argument. `run_job`'s `inputs` follow the same rule. It, and `get_job` on an ffprobe job, return ffprobe's summary and any warnings, which is what an agent needs to plan an edit. Call `get_job` with `raw: true` for every raw ffprobe section.
 
 A params schema that would crowd the model's context (compose's is about 150 KB) comes back shortened, with `trimmed` and a `hint` saying so. Call `list_job_types` with the type and `full: true` for the whole schema.
 
@@ -111,7 +111,7 @@ Every tool returns a typed result. Import the types from `@rendobar/agent-toolki
 
 ## Cancellation
 
-Each adapter passes its framework's abort signal through: the AI SDK's `abortSignal`, Mastra's `abortSignal` and LangChain's `signal`. When a run is cancelled, the tools stop polling. A `run_job` cancelled after its job was created returns `ABORTED` with the job's id, since the job keeps running on Rendobar. Calling a definition directly takes the same signal: `run(input, { signal })`.
+Each adapter passes its framework's abort signal through: the AI SDK's `abortSignal`, Mastra's `abortSignal` and LangChain's `signal`. When a run is cancelled, the tools stop polling. A `run_job` cancelled after its job was created returns `ABORTED` with the job's id and last known status in every framework, LangChain included, since the job keeps running on Rendobar. Calling a definition directly takes the same signal: `run(input, { signal })`.
 
 For an agent that speaks MCP (the OpenAI Agents SDK, the Claude Agent SDK, Mastra), connect `https://api.rendobar.com/mcp` instead.
 

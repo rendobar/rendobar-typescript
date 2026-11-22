@@ -22,7 +22,9 @@ if (!secret) throw new Error("Set RENDOBAR_WEBHOOK_SECRET");
 export class AppModule {}
 ```
 
-With no `client.apiKey`, the client reads `RENDOBAR_API_KEY`. If neither is set, the app fails at startup with `MISSING_API_KEY` and an error that names both, instead of failing later on the first API call. An empty `apiKey` fails the same way.
+With no `client.apiKey`, the client reads `RENDOBAR_API_KEY`. If neither is set, the app fails at startup with `MISSING_API_KEY` and an error that names both, instead of failing later on the first API call. An empty or blank `apiKey` fails the same way.
+
+An app that only receives webhooks needs no key. Pass `webhooks` and no `client`, and the app starts without one. If it does call the client, that call is refused with `MISSING_API_KEY` before any request.
 
 ## Options
 
@@ -108,7 +110,7 @@ async function bootstrap() {
 void bootstrap();
 ```
 
-Put `@RendobarWebhook()` on the handler. It verifies the signature, parses the event from the bytes it verified, and passes it as the first parameter. That parameter must accept a `RendobarWebhookEvent`: annotating it with another type does not compile. `isKnownWebhookEvent(event)` narrows to the events this SDK version knows, and then `event.data` narrows on `event.event`. A newer event arrives typed as an unknown event instead of failing.
+Put `@RendobarWebhook()` on the handler. It verifies the signature, parses the event from the bytes it verified, and passes it as the first parameter. That parameter must accept a `RendobarWebhookEvent`: annotating it with a narrower or unrelated type does not compile, with or without `strictFunctionTypes`. `isKnownWebhookEvent(event)` narrows to the events this SDK version knows, and then `event.data` narrows on `event.event`. A newer event arrives typed as an unknown event instead of failing.
 
 ```ts
 // webhooks.controller.ts
@@ -127,6 +129,6 @@ export class WebhooksController {
 }
 ```
 
-A bad or stale signature gets a 401, and a signed body that is not a webhook envelope a 400. `@RendobarWebhook()` with no `webhooks` options stops the app at startup. Without `rawBody` it answers 500 and names the fix. A body over the limit gets a 413.
+A bad or stale signature gets a 401, and a signed body that is not a webhook envelope a 400. `@RendobarWebhook()` with no `webhooks` options stops the app at startup. Without `rawBody` it answers 500 and names the fix. A body over the limit gets a 413, and the connection stays usable for the next request.
 
 Webhook verification needs the Express adapter, Nest's default. Supports NestJS 10 and 11. MIT licensed.
