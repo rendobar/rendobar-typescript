@@ -7,6 +7,7 @@
 import "reflect-metadata";
 import { createHmac } from "node:crypto";
 import { cpSync, realpathSync, rmSync } from "node:fs";
+import { Agent, request } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { Controller, Get, HttpCode, Module, Post, type INestApplication, type Type } from "@nestjs/common";
@@ -80,6 +81,19 @@ const envelope = (event: string, data: unknown) => JSON.stringify({ version: "1"
 const TEST_EVENT = envelope("test", { message: "hello", endpointId: "whe_1" });
 const post = (base: string, headers: Record<string, string>, body = TEST_EVENT) => fetch(`${base}/webhooks/rendobar`, { method: "POST", headers, body });
 
+/** A POST through one keep-alive socket, so a second call reuses the first call's connection. */
+function postKeepAlive(agent: Agent, base: string, headers: Record<string, string>, body: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = request(`${base}/webhooks/rendobar`, { method: "POST", agent, headers: { ...headers, "content-length": String(Buffer.byteLength(body)) } }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(res.statusCode ?? 0));
+    });
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+
 describe("RendobarModule.forRootAsync", () => {
   let app: INestApplication;
   let base = "";
@@ -135,6 +149,18 @@ describe("RendobarModule.forRootAsync", () => {
   it("answers 413 to a body no parser took that is over the cap, before verifying it", async () => {
     const big = "x".repeat(101 * 1024);
     expect((await post(base, signed(big, { type: "text/plain" }), big)).status).toBe(413);
+  });
+
+  it("keeps the next request on a keep-alive connection working after a 413", async () => {
+    const agent = new Agent({ keepAlive: true, maxSockets: 1 });
+    try {
+      // Far over the cap, so the guard answers while the client is still sending.
+      const big = "x".repeat(8 * 1024 * 1024);
+      expect(await postKeepAlive(agent, base, signed(big, { type: "text/plain" }), big)).toBe(413);
+      expect(await postKeepAlive(agent, base, signed(TEST_EVENT), TEST_EVENT)).toBe(200);
+    } finally {
+      agent.destroy();
+    }
   });
 
   it("answers an uncaught Rendobar refusal with a generic 502, not Rendobar's status and message", async () => {

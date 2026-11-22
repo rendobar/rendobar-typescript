@@ -42,18 +42,30 @@ const verifiedEvents = new WeakMap<object, RendobarWebhookEvent>();
  * JSON and urlencoded parsers read, so another content type, such as
  * text/plain, arrives as an unread stream. A body a parser read without
  * keeping it (an app without rawBody) cannot be read again, and gets undefined.
+ *
+ * A body over the cap is read to its end and dropped, then refused with a 413.
+ * Stopping early broke the connection: leaving a `for await` destroys the
+ * stream and its socket, and answering while the client is still sending
+ * resets it, so the client's next request on that keep-alive connection
+ * failed. Memory stays bounded by the cap; the server's request timeout
+ * bounds the time.
  */
-async function readUnparsedBody(req: RawRequest, maxBytes: number): Promise<Buffer | undefined> {
-  if (!(req instanceof Readable) || req.readableDidRead) return undefined;
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
-    size += buf.length;
-    if (size > maxBytes) throw new PayloadTooLargeException(`Rendobar webhook body is over ${maxBytes} bytes (webhooks.maxBodyBytes)`);
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks);
+function readUnparsedBody(req: RawRequest, maxBytes: number): Promise<Buffer | undefined> {
+  if (!(req instanceof Readable) || req.readableDidRead) return Promise.resolve(undefined);
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (chunk: unknown) => {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      size += buf.length;
+      if (size <= maxBytes) chunks.push(buf);
+    });
+    req.once("end", () => {
+      if (size <= maxBytes) resolve(Buffer.concat(chunks));
+      else reject(new PayloadTooLargeException(`Rendobar webhook body is over ${maxBytes} bytes (webhooks.maxBodyBytes)`));
+    });
+    req.once("error", reject);
+  });
 }
 
 @Injectable()
