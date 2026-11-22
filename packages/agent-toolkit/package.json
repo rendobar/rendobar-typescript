@@ -1,24 +1,39 @@
 {
   "name": "@rendobar/agent-toolkit",
   "version": "0.1.0",
-  "description": "Rendobar agent toolkit: media processing and AI generation tools for the Vercel AI SDK, Mastra and LangChain.js.",
+  "description": "Rendobar agent toolkit: the official agent tools for Rendobar's media processing and AI generation API.",
   "license": "MIT",
   "type": "module",
-  "homepage": "https://rendobar.com",
+  "homepage": "https://rendobar.com/docs/sdk",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rendobar/rendobar-typescript.git",
     "directory": "packages/agent-toolkit"
   },
+  "bugs": {
+    "url": "https://github.com/rendobar/rendobar-typescript/issues"
+  },
   "keywords": [
-    "agent",
-    "ai-sdk",
-    "ffmpeg",
-    "langchain",
-    "mastra",
     "rendobar",
+    "video-api",
+    "ffmpeg-api",
+    "media-processing",
+    "video-processing",
+    "ai",
+    "sdk",
+    "typescript",
+    "nodejs",
+    "javascript",
+    "vercel-ai-sdk",
+    "mcp",
+    "ai-agents",
+    "tool-calling",
+    "ai-sdk",
+    "mastra",
+    "langchain",
+    "agent",
     "tools",
-    "video"
+    "ffmpeg"
   ],
   "exports": {
     ".": {

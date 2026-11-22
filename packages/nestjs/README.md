@@ -1,12 +1,46 @@
-# @rendobar/nestjs
+<p align="center">
+  <a href="https://rendobar.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://cdn.rendobar.com/assets/brand/logo-mark.svg">
+      <img alt="Rendobar" src="https://cdn.rendobar.com/assets/brand/logo-mark-black.svg" width="80">
+    </picture>
+  </a>
+</p>
 
-Add Rendobar to a NestJS app: an injectable client for every media job, webhook verification before your handler runs, and a filter that keeps Rendobar's refusals out of your users' responses.
+<h1 align="center">Rendobar NestJS module</h1>
+
+<p align="center"><code>@rendobar/nestjs</code></p>
+
+<p align="center">
+  <strong>The official NestJS module for Rendobar's media processing and AI generation API.</strong>
+</p>
+
+<p align="center">
+  <a href="https://rendobar.com/docs/sdk">Docs</a> &nbsp;·&nbsp;
+  <a href="https://rendobar.com/integrations/nestjs/">Guide</a> &nbsp;·&nbsp;
+  <a href="https://api.rendobar.com/reference">API reference</a> &nbsp;·&nbsp;
+  <a href="https://www.npmjs.com/package/@rendobar/nestjs">npm</a> &nbsp;·&nbsp;
+  <a href="https://app.rendobar.com">Get an API key</a> &nbsp;·&nbsp;
+  <a href="https://discord.com/invite/kAGqjBzx8N">Discord</a>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@rendobar/nestjs"><img src="https://img.shields.io/npm/v/@rendobar/nestjs?style=flat-square&color=059669&label=npm" alt="npm version"></a>
+  <img src="https://img.shields.io/node/v/@rendobar/nestjs?style=flat-square&color=059669" alt="Node version">
+  <img src="https://img.shields.io/npm/l/@rendobar/nestjs?style=flat-square&color=059669" alt="License">
+</p>
+
+The official NestJS module for Rendobar's media processing and AI generation API. It adds an injectable client for every media job, verifies webhooks before your handler runs, and keeps Rendobar's refusals out of your users' responses. It supports NestJS 10 and 11 on Node 22 or later, is typed end to end, and keeps the retries and idempotency of [`@rendobar/sdk`](https://www.npmjs.com/package/@rendobar/sdk).
+
+## Install
 
 ```bash
 npm install @rendobar/nestjs @rendobar/sdk
 ```
 
-## Register the module
+## Quickstart
+
+Register the module once:
 
 ```ts
 // app.module.ts
@@ -25,6 +59,34 @@ export class AppModule {}
 With no `client.apiKey`, the client reads `RENDOBAR_API_KEY`. If neither is set, the app fails at startup with `MISSING_API_KEY` and an error that names both, instead of failing later on the first API call. An empty or blank `apiKey` fails the same way.
 
 An app that only receives webhooks needs no key. Pass `webhooks` and no `client`, and the app starts without one. If it does call the client, that call is refused with `MISSING_API_KEY` before any request.
+
+Then inject `RendobarClient` by type and run a job:
+
+```ts
+// videos.service.ts
+import { Injectable } from "@nestjs/common";
+import { RendobarClient } from "@rendobar/nestjs";
+import type { TypedJob } from "@rendobar/sdk";
+
+@Injectable()
+export class VideosService {
+  constructor(private readonly rb: RendobarClient) {}
+
+  probe(url: string): Promise<TypedJob<"ffprobe">> {
+    return this.rb.jobs.run({ type: "ffprobe", params: { command: url } });
+  }
+}
+```
+
+## Let your AI assistant do it
+
+Paste this one line into Claude, ChatGPT, or Cursor and the assistant reads the
+full integration playbook, detects your stack, and wires Rendobar into your
+codebase. Your API key stays in your env file, never in the chat.
+
+```text
+Add Rendobar to my app: read and follow https://rendobar.com/prompts/integrate.md
+```
 
 ## Options
 
@@ -64,26 +126,6 @@ import { RendobarModule } from "@rendobar/nestjs";
   ],
 })
 export class AppModule {}
-```
-
-## Use the client
-
-Inject `RendobarClient` by type:
-
-```ts
-// videos.service.ts
-import { Injectable } from "@nestjs/common";
-import { RendobarClient } from "@rendobar/nestjs";
-import type { TypedJob } from "@rendobar/sdk";
-
-@Injectable()
-export class VideosService {
-  constructor(private readonly rb: RendobarClient) {}
-
-  probe(url: string): Promise<TypedJob<"ffprobe">> {
-    return this.rb.jobs.run({ type: "ffprobe", params: { command: url } });
-  }
-}
 ```
 
 ## Rendobar errors in your responses
@@ -132,4 +174,32 @@ export class WebhooksController {
 
 A bad or stale signature gets a 401, and a signed body that is not a webhook envelope a 400. `@RendobarWebhook()` with no `webhooks` options stops the app at startup. Without `rawBody` it answers 500 and names the fix. A body over the limit gets a 413, and the connection stays usable for the next request.
 
-Webhook verification needs the Express adapter, Nest's default. Supports NestJS 10 and 11. MIT licensed.
+Webhook verification needs the Express adapter, Nest's default.
+
+## Examples
+
+[`examples/nestjs-app`](https://github.com/rendobar/rendobar-typescript/tree/main/examples/nestjs-app) is a NestJS app on this module: an endpoint that probes a video and returns the typed result, and a webhook route that verifies and handles each event.
+
+## Other Rendobar SDKs
+
+- TypeScript: [`@rendobar/sdk`](https://www.npmjs.com/package/@rendobar/sdk) on npm, the client these packages build on.
+- Python: [`rendobar`](https://pypi.org/project/rendobar/) on PyPI.
+- Go: [`github.com/rendobar/rendobar-go`](https://pkg.go.dev/github.com/rendobar/rendobar-go) on pkg.go.dev.
+- NestJS: [`@rendobar/nestjs`](https://www.npmjs.com/package/@rendobar/nestjs), an injectable client and webhook verification for NestJS apps.
+- Agent toolkit: [`@rendobar/agent-toolkit`](https://www.npmjs.com/package/@rendobar/agent-toolkit), Rendobar tools for the Vercel AI SDK, Mastra and LangChain.js.
+
+## Versioning and support
+
+`@rendobar/nestjs` follows semantic versioning. While it is at 0.x, a minor release may
+tighten types, and the changelog says so when one does. Deprecations are
+announced before anything is removed. See the
+[versioning policy](https://rendobar.com/docs/support/versioning) and the
+[changelog](https://rendobar.com/changelog/).
+
+Report a bug at
+[rendobar/rendobar-typescript issues](https://github.com/rendobar/rendobar-typescript/issues),
+or ask on [Discord](https://discord.com/invite/kAGqjBzx8N).
+
+## License
+
+[MIT](https://github.com/rendobar/rendobar-typescript/blob/main/LICENSE). Rendobar is a product of Craftobar LLC.

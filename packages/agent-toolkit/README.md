@@ -1,6 +1,37 @@
-# @rendobar/agent-toolkit
+<p align="center">
+  <a href="https://rendobar.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://cdn.rendobar.com/assets/brand/logo-mark.svg">
+      <img alt="Rendobar" src="https://cdn.rendobar.com/assets/brand/logo-mark-black.svg" width="80">
+    </picture>
+  </a>
+</p>
 
-Rendobar tools for AI agent frameworks: the Vercel AI SDK, Mastra and LangChain.js. Give an agent the ability to process video, audio and images, burn captions, compose edits and generate images, with one import.
+<h1 align="center">Rendobar agent toolkit</h1>
+
+<p align="center"><code>@rendobar/agent-toolkit</code></p>
+
+<p align="center">
+  <strong>The official agent toolkit for Rendobar's media processing and AI generation API.</strong>
+</p>
+
+<p align="center">
+  <a href="https://rendobar.com/docs/sdk">Docs</a> &nbsp;·&nbsp;
+  <a href="https://api.rendobar.com/reference">API reference</a> &nbsp;·&nbsp;
+  <a href="https://www.npmjs.com/package/@rendobar/agent-toolkit">npm</a> &nbsp;·&nbsp;
+  <a href="https://app.rendobar.com">Get an API key</a> &nbsp;·&nbsp;
+  <a href="https://discord.com/invite/kAGqjBzx8N">Discord</a>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@rendobar/agent-toolkit"><img src="https://img.shields.io/npm/v/@rendobar/agent-toolkit?style=flat-square&color=059669&label=npm" alt="npm version"></a>
+  <img src="https://img.shields.io/node/v/@rendobar/agent-toolkit?style=flat-square&color=059669" alt="Node version">
+  <img src="https://img.shields.io/npm/l/@rendobar/agent-toolkit?style=flat-square&color=059669" alt="License">
+</p>
+
+The official agent toolkit for Rendobar's media processing and AI generation API. Give an agent the ability to process video, audio and images, burn captions, compose edits and generate images, with one import. It works with the Vercel AI SDK, Mastra and LangChain.js on Node 22 or later, every tool returns a typed result, and errors reach the model as data instead of ending its loop.
+
+## Install
 
 ```bash
 npm install @rendobar/agent-toolkit @rendobar/sdk zod ai
@@ -8,7 +39,9 @@ npm install @rendobar/agent-toolkit @rendobar/sdk zod ai
 
 The tools read `RENDOBAR_API_KEY`. The tool schemas are Zod 4 schemas, so the toolkit needs `zod` 4.
 
-## Vercel AI SDK
+## Quickstart
+
+On the Vercel AI SDK, an agent that trims a video and answers with the link:
 
 ```ts
 import { generateText, stepCountIs } from "ai";
@@ -20,6 +53,16 @@ const { text } = await generateText({
   stopWhen: stepCountIs(5),
   prompt: "Cut https://cdn.rendobar.com/assets/examples/sample.mp4 to its first 5 seconds and give me the link.",
 });
+```
+
+## Let your AI assistant do it
+
+Paste this one line into Claude, ChatGPT, or Cursor and the assistant reads the
+full integration playbook, detects your stack, and wires Rendobar into your
+codebase. Your API key stays in your env file, never in the chat.
+
+```text
+Add Rendobar to my app: read and follow https://rendobar.com/prompts/integrate.md
 ```
 
 ## Mastra
@@ -127,4 +170,30 @@ Reusing a key with a different type, params or inputs is refused with a 409. The
 
 Once a job exists, a wait that fails returns the job id and a hint to call `get_job`, so the model checks on that job instead of paying for a second one.
 
-MIT. Rendobar is a product of Craftobar LLC.
+## Examples
+
+[`examples/agent-toolkit-ai-sdk`](https://github.com/rendobar/rendobar-typescript/tree/main/examples/agent-toolkit-ai-sdk) is an AI SDK agent on this toolkit that probes a video, trims it to 2 seconds and answers with the URL, driven by a scripted model.
+
+## Other Rendobar SDKs
+
+- TypeScript: [`@rendobar/sdk`](https://www.npmjs.com/package/@rendobar/sdk) on npm, the client these packages build on.
+- Python: [`rendobar`](https://pypi.org/project/rendobar/) on PyPI.
+- Go: [`github.com/rendobar/rendobar-go`](https://pkg.go.dev/github.com/rendobar/rendobar-go) on pkg.go.dev.
+- NestJS: [`@rendobar/nestjs`](https://www.npmjs.com/package/@rendobar/nestjs), an injectable client and webhook verification for NestJS apps.
+- Agent toolkit: [`@rendobar/agent-toolkit`](https://www.npmjs.com/package/@rendobar/agent-toolkit), Rendobar tools for the Vercel AI SDK, Mastra and LangChain.js.
+
+## Versioning and support
+
+`@rendobar/agent-toolkit` follows semantic versioning. While it is at 0.x, a minor release may
+tighten types, and the changelog says so when one does. Deprecations are
+announced before anything is removed. See the
+[versioning policy](https://rendobar.com/docs/support/versioning) and the
+[changelog](https://rendobar.com/changelog/).
+
+Report a bug at
+[rendobar/rendobar-typescript issues](https://github.com/rendobar/rendobar-typescript/issues),
+or ask on [Discord](https://discord.com/invite/kAGqjBzx8N).
+
+## License
+
+[MIT](https://github.com/rendobar/rendobar-typescript/blob/main/LICENSE). Rendobar is a product of Craftobar LLC.

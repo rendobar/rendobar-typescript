@@ -1,22 +1,33 @@
 {
   "name": "@rendobar/nestjs",
   "version": "0.1.0",
-  "description": "Rendobar NestJS module: an injectable Rendobar client, webhook verification and an API error filter for NestJS apps.",
+  "description": "Rendobar NestJS module: the official NestJS module for Rendobar's media processing and AI generation API.",
   "license": "MIT",
   "type": "commonjs",
-  "homepage": "https://rendobar.com",
+  "homepage": "https://rendobar.com/integrations/nestjs/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rendobar/rendobar-typescript.git",
     "directory": "packages/nestjs"
   },
+  "bugs": {
+    "url": "https://github.com/rendobar/rendobar-typescript/issues"
+  },
   "keywords": [
     "rendobar",
+    "video-api",
+    "ffmpeg-api",
+    "media-processing",
+    "video-processing",
+    "ai",
+    "webhooks",
+    "sdk",
+    "typescript",
+    "nodejs",
+    "javascript",
     "nestjs",
     "nest",
-    "video",
-    "ffmpeg",
-    "webhooks"
+    "ffmpeg"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
