@@ -82,7 +82,10 @@ describe("the editor agent (AI SDK)", () => {
     assert.ok(trimmed.status === "complete", `trim ended ${trimmed.status}`);
     const url = trimmed.url;
     assert.ok(url !== null && url.startsWith("https://"), `url ${String(url)}`);
-    assert.ok(result.text.endsWith(url), result.text);
+    // A signed download URL carries a fresh token on every read, so the answer, which the
+    // agent writes after get_job, names the same file under another signature.
+    const answered = result.text.slice(result.text.lastIndexOf("https://"));
+    assert.equal(new URL(answered).pathname, new URL(url).pathname, result.text);
 
     assert.ok(read?.toolName === "get_job");
     assert.equal(jobOf(read.output).id, trimmed.id);
